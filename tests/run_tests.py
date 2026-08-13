@@ -22,7 +22,7 @@ if WORKSPACE not in sys.path:
     sys.path.insert(0, WORKSPACE)
 
 import uv_padding_overlay as addon
-from uv_padding_overlay import geometry, overlay
+from uv_padding_overlay import geometry, overlay, settings as settings_module
 
 
 def assert_equal(actual, expected, message=""):
@@ -449,31 +449,76 @@ def test_transform_quiet_gate():
 
 
 def test_lifecycle_and_persistence():
+    preferences = bpy.context.preferences
+    created_addon_entry = False
+    if preferences.addons.get(settings_module.ADDON_ID) is None:
+        addon_entry = preferences.addons.new()
+        addon_entry.module = settings_module.ADDON_ID
+        created_addon_entry = True
     addon.register()
     try:
+        settings_module.migrate_legacy_scene_settings()
         assert hasattr(bpy.types.Scene, "uv_padding_overlay")
-        settings = bpy.context.scene.uv_padding_overlay
-        assert_close(settings.margin_px, 8.0)
-        assert_equal(settings.texture_resolution, 2048)
-        assert_equal(settings.enabled, True)
-        assert_equal(settings.selected_only, False)
-        assert_close(settings.outline_width_px, 4.0)
-        assert_equal(settings.corner_segments, 2)
-        assert_equal(settings.render_mode, "LAYERED")
+        scene_settings = bpy.context.scene.uv_padding_overlay
+        global_settings = settings_module.get_preferences()
+        if global_settings is None:
+            raise AssertionError("Global extension preferences are unavailable")
+
+        scene_property_names = set(scene_settings.bl_rna.properties.keys())
+        for name in ("margin_px", "texture_resolution", "outline_width_px"):
+            if name not in scene_property_names:
+                raise AssertionError(f"Missing scene property: {name}")
+        for name in (
+            "enabled",
+            "selected_only",
+            "corner_segments",
+            "render_mode",
+            "color",
+        ):
+            if name in scene_property_names:
+                raise AssertionError(f"Global property stored on Scene: {name}")
+
+        assert_close(scene_settings.margin_px, 8.0)
+        assert_equal(scene_settings.texture_resolution, 2048)
+        assert_close(scene_settings.outline_width_px, 4.0)
+        assert_equal(global_settings.enabled, True)
+        assert_equal(global_settings.selected_only, False)
+        assert_equal(global_settings.corner_segments, 2)
+        assert_equal(global_settings.render_mode, "LAYERED")
         assert_equal(
-            settings.bl_rna.properties["render_mode"]
+            global_settings.bl_rna.properties["render_mode"]
             .enum_items["UNIFIED"]
             .name,
             "Solid",
         )
-        assert_equal(len(settings.color), 4)
-        assert_close(settings.color[3], 0.5)
-        settings.margin_px = 18.0
-        assert_close(settings.outline_width_px, 9.0)
-        settings.render_mode = "UNIFIED"
-        settings.corner_segments = 7
-        settings.color = (0.2, 0.3, 0.4, 0.27)
-        assert_close(settings.color[3], 0.27, tolerance=1.0e-6)
+        assert_equal(len(global_settings.color), 4)
+        assert_close(global_settings.color[3], 0.5)
+        assert_equal(global_settings.storage_version, 1)
+
+        # Simulate raw values left by the v1.2 scene PropertyGroup and verify
+        # that a first-run migration adopts and removes them.
+        global_settings.storage_version = 0
+        scene_settings["selected_only"] = True
+        scene_settings["corner_segments"] = 9
+        scene_settings["render_mode"] = "UNIFIED"
+        scene_settings["color"] = [0.1, 0.2, 0.3, 0.4]
+        assert_equal(settings_module.migrate_legacy_scene_settings(), True)
+        assert_equal(global_settings.storage_version, 1)
+        assert_equal(global_settings.selected_only, True)
+        assert_equal(global_settings.corner_segments, 9)
+        assert_equal(global_settings.render_mode, "UNIFIED")
+        assert_close(global_settings.color[3], 0.4, tolerance=1.0e-6)
+        for name in settings_module._GLOBAL_SETTING_NAMES:
+            if name in scene_settings:
+                raise AssertionError(f"Legacy scene value was not removed: {name}")
+
+        scene_settings.margin_px = 18.0
+        assert_close(scene_settings.outline_width_px, 9.0)
+        global_settings.render_mode = "UNIFIED"
+        global_settings.corner_segments = 7
+        global_settings.selected_only = False
+        global_settings.color = (0.2, 0.3, 0.4, 0.27)
+        assert_close(global_settings.color[3], 0.27, tolerance=1.0e-6)
         assert overlay._DRAW_HANDLE is not None
         assert bpy.app.timers.is_registered(overlay._update_timer)
         assert overlay._depsgraph_update_post in bpy.app.handlers.depsgraph_update_post
@@ -491,6 +536,12 @@ def test_lifecycle_and_persistence():
         assert_equal(old_runtime, {})
         assert not hasattr(bpy.types.Scene, "uv_padding_overlay")
         addon.register()
+        global_settings = settings_module.get_preferences()
+        if global_settings is None:
+            raise AssertionError("Preferences were lost during extension reload")
+        assert_equal(global_settings.render_mode, "UNIFIED")
+        assert_equal(global_settings.corner_segments, 7)
+        assert_close(global_settings.color[3], 0.27, tolerance=1.0e-6)
         replacement = bpy.app.driver_namespace.get(
             overlay._RUNTIME_NAMESPACE_KEY
         )
@@ -509,28 +560,45 @@ def test_lifecycle_and_persistence():
             if shader is None:
                 raise AssertionError("GPU shader was not created")
 
-        settings.margin_px = 12.5
+        scene_settings = bpy.context.scene.uv_padding_overlay
+        scene_settings.margin_px = 12.5
+        scene_settings.texture_resolution = 4096
         with tempfile.TemporaryDirectory() as temporary_directory:
             blend_path = os.path.join(temporary_directory, "settings.blend")
             bpy.ops.wm.save_as_mainfile(filepath=blend_path)
-            settings.margin_px = 2.0
+            scene_settings.margin_px = 2.0
+            scene_settings.texture_resolution = 1024
+            global_settings.enabled = False
+            global_settings.selected_only = True
+            global_settings.render_mode = "LAYERED"
+            global_settings.corner_segments = 3
+            global_settings.color = (0.8, 0.7, 0.6, 0.19)
             bpy.ops.wm.open_mainfile(filepath=blend_path)
-            assert_close(bpy.context.scene.uv_padding_overlay.margin_px, 12.5)
+            restored_scene_settings = bpy.context.scene.uv_padding_overlay
+            restored_global_settings = settings_module.get_preferences()
+            assert_close(restored_scene_settings.margin_px, 12.5)
+            assert_equal(restored_scene_settings.texture_resolution, 4096)
+            assert_equal(restored_global_settings.enabled, False)
+            assert_equal(restored_global_settings.selected_only, True)
             assert_equal(
-                bpy.context.scene.uv_padding_overlay.render_mode,
-                "UNIFIED",
+                restored_global_settings.render_mode,
+                "LAYERED",
             )
             assert_equal(
-                bpy.context.scene.uv_padding_overlay.corner_segments,
-                7,
+                restored_global_settings.corner_segments,
+                3,
             )
             assert_close(
-                bpy.context.scene.uv_padding_overlay.color[3],
-                0.27,
+                restored_global_settings.color[3],
+                0.19,
                 tolerance=1.0e-6,
             )
     finally:
         addon.unregister()
+        if created_addon_entry:
+            addon_entry = preferences.addons.get(settings_module.ADDON_ID)
+            if addon_entry is not None:
+                preferences.addons.remove(addon_entry)
     assert not hasattr(bpy.types.Scene, "uv_padding_overlay")
     assert overlay._DRAW_HANDLE is None
     assert not bpy.app.timers.is_registered(overlay._update_timer)

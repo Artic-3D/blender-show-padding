@@ -177,15 +177,18 @@ def _collect_sources_for_scene(scene):
 
 
 def context_status(context):
-    settings = context.scene.uv_padding_overlay
-    if not settings.enabled:
+    from . import settings as settings_module
+
+    scene_settings = context.scene.uv_padding_overlay
+    global_settings = settings_module.get_preferences(context)
+    if global_settings is None or not global_settings.enabled:
         return None, None
     objects = _source_objects(context)
     if not objects:
         return "Enter mesh Edit Mode", "INFO"
     if not any(obj.data.uv_layers.active is not None for obj in objects):
         return "No active UV map", "INFO"
-    if settings.margin_px <= 0.0:
+    if scene_settings.margin_px <= 0.0:
         return "Margin is zero", "INFO"
     return None, None
 
@@ -619,6 +622,8 @@ def _draw_unified(context, entry, view_rect, color):
 
 
 def _draw_overlay():
+    from . import settings as settings_module
+
     context = bpy.context
     area = context.area
     region = context.region
@@ -634,8 +639,14 @@ def _draw_overlay():
     ):
         return
     scene = context.scene
-    settings = getattr(scene, "uv_padding_overlay", None)
-    if settings is None or not settings.enabled or settings.margin_px <= 0.0:
+    scene_settings = getattr(scene, "uv_padding_overlay", None)
+    global_settings = settings_module.get_preferences(context)
+    if (
+        scene_settings is None
+        or global_settings is None
+        or not global_settings.enabled
+        or scene_settings.margin_px <= 0.0
+    ):
         return
     entry = _CACHE.get(scene.as_pointer())
     if entry is None:
@@ -649,12 +660,14 @@ def _draw_overlay():
     maximum = view.region_to_view(region.width, region.height)
     view_rect = (minimum[0], minimum[1], maximum[0], maximum[1])
     color = (
-        float(settings.color[0]),
-        float(settings.color[1]),
-        float(settings.color[2]),
-        float(settings.color[3]) if len(settings.color) > 3 else 0.5,
+        float(global_settings.color[0]),
+        float(global_settings.color[1]),
+        float(global_settings.color[2]),
+        float(global_settings.color[3])
+        if len(global_settings.color) > 3
+        else 0.5,
     )
-    if settings.render_mode == "UNIFIED":
+    if global_settings.render_mode == "UNIFIED":
         _draw_unified(context, entry, view_rect, color)
     else:
         _draw_layered(entry, view_rect, color)
@@ -663,13 +676,21 @@ def _draw_overlay():
 def _update_scene_cache(scene):
     """Read a stable edit BMesh snapshot and queue GPU geometry."""
 
-    settings = getattr(scene, "uv_padding_overlay", None)
-    if settings is None or not settings.enabled or settings.margin_px <= 0.0:
+    from . import settings as settings_module
+
+    scene_settings = getattr(scene, "uv_padding_overlay", None)
+    global_settings = settings_module.get_preferences()
+    if (
+        scene_settings is None
+        or global_settings is None
+        or not global_settings.enabled
+        or scene_settings.margin_px <= 0.0
+    ):
         _CACHE.pop(scene.as_pointer(), None)
         return False
     band_width = compute_band_width(
-        settings.margin_px,
-        settings.texture_resolution,
+        scene_settings.margin_px,
+        scene_settings.texture_resolution,
     )
     if band_width <= 0.0:
         _CACHE.pop(scene.as_pointer(), None)
@@ -682,9 +703,9 @@ def _update_scene_cache(scene):
         scene,
         sources,
         band_width,
-        settings.selected_only,
+        global_settings.selected_only,
         bool(scene.tool_settings.use_uv_select_sync),
-        settings.corner_segments,
+        global_settings.corner_segments,
     )
     return (
         before is None

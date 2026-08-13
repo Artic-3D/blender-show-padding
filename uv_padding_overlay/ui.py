@@ -20,27 +20,31 @@ class UVPADDING_PT_overlay(Panel):
         return area.ui_type == "UV" or getattr(space, "ui_mode", "") == "UV"
 
     def draw(self, context):
-        from . import overlay
+        from . import overlay, settings as settings_module
 
         layout = self.layout
-        settings = context.scene.uv_padding_overlay
-        layout.prop(settings, "enabled")
+        scene_settings = context.scene.uv_padding_overlay
+        global_settings = settings_module.get_preferences(context)
+        if global_settings is None:
+            layout.label(text="Global preferences unavailable", icon="INFO")
+            return
+        layout.prop(global_settings, "enabled")
 
         body = layout.column()
-        body.active = settings.enabled
-        body.prop(settings, "margin_px", text="Margin (px)")
+        body.active = global_settings.enabled
+        body.prop(scene_settings, "margin_px", text="Margin (px)")
         outline_row = body.row()
         outline_row.enabled = False
         outline_row.prop(
-            settings,
+            scene_settings,
             "outline_width_px",
             text="Outline Width (px)",
         )
-        body.prop(settings, "texture_resolution", text="Resolution")
-        body.prop(settings, "corner_segments", text="Roundness")
-        body.prop(settings, "selected_only")
-        body.prop(settings, "render_mode", text="Mode")
-        body.prop(settings, "color")
+        body.prop(scene_settings, "texture_resolution", text="Resolution")
+        body.prop(global_settings, "corner_segments", text="Roundness")
+        body.prop(global_settings, "selected_only")
+        body.prop(global_settings, "render_mode", text="Mode")
+        body.prop(global_settings, "color")
 
         status, icon = overlay.context_status(context)
         if status is not None:
