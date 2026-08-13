@@ -124,7 +124,7 @@ class UVPADDING_AP_preferences(AddonPreferences):
         size=4,
         min=0.0,
         max=1.0,
-        default=(1.0, 0.05, 0.35, 0.5),
+        default=(1.0, 0.05, 0.35, 0.25),
         update=_style_update,
     )
 

@@ -33,19 +33,28 @@ class UVPADDING_PT_overlay(Panel):
         body = layout.column()
         body.active = global_settings.enabled
         body.prop(scene_settings, "margin_px", text="Margin (px)")
+        body.prop(scene_settings, "texture_resolution", text="Resolution")
         body.label(
             text=(
                 "Outline Width: "
                 f"{scene_settings.outline_width_px:.2f} px"
             )
         )
-        body.prop(scene_settings, "texture_resolution", text="Resolution")
         body.separator()
-        body.label(text="Settings")
-        body.prop(global_settings, "selected_only")
-        body.prop(global_settings, "render_mode", text="Mode")
-        body.prop(global_settings, "corner_segments", text="Roundness")
-        body.prop(global_settings, "color")
+        settings_header, settings_body = body.panel(
+            "uv_padding_overlay_settings",
+            default_closed=False,
+        )
+        settings_header.label(text="Settings")
+        if settings_body is not None:
+            settings_body.prop(global_settings, "selected_only")
+            settings_body.prop(global_settings, "render_mode", text="Mode")
+            settings_body.prop(
+                global_settings,
+                "corner_segments",
+                text="Roundness",
+            )
+            settings_body.prop(global_settings, "color")
 
         status, icon = overlay.context_status(context)
         if status is not None:

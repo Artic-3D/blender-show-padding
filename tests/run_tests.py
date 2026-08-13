@@ -535,7 +535,7 @@ def test_lifecycle_and_persistence():
             "Solid",
         )
         assert_equal(len(global_settings.color), 4)
-        assert_close(global_settings.color[3], 0.5)
+        assert_close(global_settings.color[3], 0.25)
         assert_equal(global_settings.storage_version, 1)
 
         # Simulate raw values left by the v1.2 scene PropertyGroup and verify

@@ -714,7 +714,7 @@ def _draw_overlay():
         float(global_settings.color[2]),
         float(global_settings.color[3])
         if len(global_settings.color) > 3
-        else 0.5,
+        else 0.25,
     )
     if global_settings.render_mode == "UNIFIED":
         _draw_unified(context, entry, view_rect, color)
