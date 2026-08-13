@@ -144,12 +144,37 @@ def _face_orientation(uvs):
     return 1 if area_twice >= 0.0 else -1
 
 
-def _face_is_touched(face, uv_layer, uv_select_sync):
+def _normalized_mesh_select_mode(mesh_select_mode):
+    if mesh_select_mode is None:
+        return True, True, True
+    values = tuple(bool(value) for value in mesh_select_mode)
+    if len(values) != 3:
+        return True, True, True
+    return values
+
+
+def _face_is_touched(
+    face,
+    uv_layer,
+    uv_select_sync,
+    mesh_select_mode=None,
+):
     sample_uv = face.loops[0][uv_layer]
     # Blender 5.3's provisional BMesh API no longer exposes per-loop UV
     # selection flags. Fall back to mesh element selection in that build;
     # synchronized selection uses the same path in every supported version.
-    if uv_select_sync or not hasattr(sample_uv, "select"):
+    if uv_select_sync:
+        vertex_mode, edge_mode, face_mode = _normalized_mesh_select_mode(
+            mesh_select_mode
+        )
+        if face_mode and face.select:
+            return True
+        if edge_mode and any(loop.edge.select for loop in face.loops):
+            return True
+        return vertex_mode and any(loop.vert.select for loop in face.loops)
+    if not hasattr(sample_uv, "select"):
+        # Blender 5.3 alpha 622a9d67aa3e exposes no independent UV-selection
+        # layer through BMesh. Mesh selection is the only available fallback.
         if face.select:
             return True
         return any(loop.vert.select or loop.edge.select for loop in face.loops)
@@ -176,7 +201,13 @@ def _prepare_indices(bm):
     bm.faces.index_update()
 
 
-def state_signature(bm, uv_layer, selected_only=False, uv_select_sync=False):
+def state_signature(
+    bm,
+    uv_layer,
+    selected_only=False,
+    uv_select_sync=False,
+    mesh_select_mode=None,
+):
     """Return a compact fingerprint of state that affects the overlay."""
 
     _prepare_indices(bm)
@@ -192,7 +223,14 @@ def state_signature(bm, uv_layer, selected_only=False, uv_select_sync=False):
         if selected_only:
             fingerprint = _mix_hash(
                 fingerprint,
-                int(_face_is_touched(face, uv_layer, uv_select_sync)),
+                int(
+                    _face_is_touched(
+                        face,
+                        uv_layer,
+                        uv_select_sync,
+                        mesh_select_mode,
+                    )
+                ),
             )
         for loop in face.loops:
             uv = loop[uv_layer].uv
@@ -526,6 +564,7 @@ def _build_overlay_geometry_with_template(
     selected_only=False,
     uv_select_sync=False,
     corner_segments=2,
+    mesh_select_mode=None,
 ):
     """Build indexed UV-space triangles for all included shell boundaries.
 
@@ -554,7 +593,12 @@ def _build_overlay_geometry_with_template(
         local_face_index = len(visible_faces)
         visible_faces.append(face)
         touched = (
-            _face_is_touched(face, uv_layer, uv_select_sync)
+            _face_is_touched(
+                face,
+                uv_layer,
+                uv_select_sync,
+                mesh_select_mode,
+            )
             if selected_only
             else False
         )
@@ -650,6 +694,7 @@ def build_overlay_geometry(
     selected_only=False,
     uv_select_sync=False,
     corner_segments=2,
+    mesh_select_mode=None,
 ):
     """Build overlay geometry without exposing the refresh template."""
 
@@ -660,6 +705,7 @@ def build_overlay_geometry(
         selected_only,
         uv_select_sync,
         corner_segments,
+        mesh_select_mode,
     )
     return result[:4]
 
@@ -671,6 +717,7 @@ def build_overlay_geometry_with_template(
     selected_only=False,
     uv_select_sync=False,
     corner_segments=2,
+    mesh_select_mode=None,
 ):
     """Build overlay geometry and return a coordinate-refresh template."""
 
@@ -681,4 +728,5 @@ def build_overlay_geometry_with_template(
         selected_only,
         uv_select_sync,
         corner_segments,
+        mesh_select_mode,
     )

@@ -55,6 +55,7 @@ class _CacheEntry:
         "source_key",
         "selected_only",
         "uv_select_sync",
+        "mesh_select_mode",
         "pending_positions",
         "pending_triangles",
         "needs_verify",
@@ -75,6 +76,7 @@ class _CacheEntry:
         self.source_key = ()
         self.selected_only = False
         self.uv_select_sync = False
+        self.mesh_select_mode = (True, False, False)
         self.pending_positions = None
         self.pending_triangles = None
         self.needs_verify = False
@@ -200,10 +202,21 @@ def _source_key(sources):
     )
 
 
-def _combined_signature(sources, selected_only, uv_select_sync):
+def _combined_signature(
+    sources,
+    selected_only,
+    uv_select_sync,
+    mesh_select_mode,
+):
     combined = 0xCBF29CE484222325
     for mesh, bm, uv_layer, layer_name in sources:
-        value = state_signature(bm, uv_layer, selected_only, uv_select_sync)
+        value = state_signature(
+            bm,
+            uv_layer,
+            selected_only,
+            uv_select_sync,
+            mesh_select_mode,
+        )
         combined ^= mesh.as_pointer() & ((1 << 64) - 1)
         combined ^= hash(layer_name) & ((1 << 64) - 1)
         combined ^= value
@@ -218,6 +231,7 @@ def _rebuild_entry(
     selected_only,
     uv_select_sync,
     corner_segments,
+    mesh_select_mode,
 ):
     positions = []
     triangles = []
@@ -244,6 +258,7 @@ def _rebuild_entry(
             selected_only,
             uv_select_sync,
             corner_segments,
+            mesh_select_mode,
         )
         templates.append(template)
         offset = len(positions)
@@ -361,6 +376,7 @@ def _ensure_entry(
     selected_only,
     uv_select_sync,
     corner_segments,
+    mesh_select_mode,
 ):
     corner_segments = max(1, int(corner_segments))
     key = scene.as_pointer()
@@ -375,6 +391,7 @@ def _ensure_entry(
         entry.source_key != source_key
         or entry.selected_only != bool(selected_only)
         or entry.uv_select_sync != bool(uv_select_sync)
+        or entry.mesh_select_mode != tuple(mesh_select_mode)
     )
     if entry.signature is None or configuration_changed:
         _rebuild_entry(
@@ -384,10 +401,12 @@ def _ensure_entry(
             selected_only,
             uv_select_sync,
             corner_segments,
+            mesh_select_mode,
         )
         entry.source_key = source_key
         entry.selected_only = bool(selected_only)
         entry.uv_select_sync = bool(uv_select_sync)
+        entry.mesh_select_mode = tuple(mesh_select_mode)
     elif (
         entry.revision != _REVISION
         or entry.band_width != band_width
@@ -406,6 +425,7 @@ def _ensure_entry(
                 selected_only,
                 uv_select_sync,
                 corner_segments,
+                mesh_select_mode,
             )
     should_verify_refresh = (
         entry.needs_verify
@@ -415,7 +435,12 @@ def _ensure_entry(
         now - entry.last_signature_check >= _FALLBACK_INTERVAL
     )
     if should_verify_refresh or should_run_fallback:
-        signature = _combined_signature(sources, selected_only, uv_select_sync)
+        signature = _combined_signature(
+            sources,
+            selected_only,
+            uv_select_sync,
+            mesh_select_mode,
+        )
         entry.last_signature_check = now
         if signature != entry.signature:
             _rebuild_entry(
@@ -425,6 +450,7 @@ def _ensure_entry(
                 selected_only,
                 uv_select_sync,
                 corner_segments,
+                mesh_select_mode,
             )
         else:
             entry.needs_verify = False
@@ -706,6 +732,7 @@ def _update_scene_cache(scene):
         global_settings.selected_only,
         bool(scene.tool_settings.use_uv_select_sync),
         global_settings.corner_segments,
+        tuple(scene.tool_settings.mesh_select_mode),
     )
     return (
         before is None

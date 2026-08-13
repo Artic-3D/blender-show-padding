@@ -131,6 +131,7 @@ def build(
     selected_only=False,
     uv_select_sync=False,
     corner_segments=2,
+    mesh_select_mode=None,
 ):
     return geometry.build_overlay_geometry(
         bm,
@@ -139,6 +140,7 @@ def build(
         selected_only,
         uv_select_sync,
         corner_segments,
+        mesh_select_mode,
     )
 
 
@@ -321,6 +323,37 @@ def test_selection_and_hidden_faces():
         _positions, _triangles, stats, _signature = build(bm, uv_layer)
         assert_equal(stats["visible_faces"], 1)
         assert_equal(stats["boundary_edges"], 4)
+    finally:
+        bm.free()
+
+
+def test_sync_selection_respects_mesh_select_mode():
+    bm, uv_layer, faces = adjacent_fixture(seam=True)
+    try:
+        # Selecting one face also selects its vertices and edges. In Face mode
+        # those implicit flags must not leak selection into the adjacent shell.
+        faces[0].select_set(True)
+        _positions, _triangles, stats, _signature = build(
+            bm,
+            uv_layer,
+            selected_only=True,
+            uv_select_sync=True,
+            mesh_select_mode=(False, False, True),
+        )
+        assert_equal(stats["islands"], 1)
+        assert_equal(stats["boundary_edges"], 4)
+
+        # Vertex mode intentionally includes both shells because the shared
+        # mesh vertices represent selected UV occurrences in synchronized mode.
+        _positions, _triangles, stats, _signature = build(
+            bm,
+            uv_layer,
+            selected_only=True,
+            uv_select_sync=True,
+            mesh_select_mode=(True, False, False),
+        )
+        assert_equal(stats["islands"], 2)
+        assert_equal(stats["boundary_edges"], 8)
     finally:
         bm.free()
 
@@ -614,6 +647,7 @@ TESTS = (
     test_hole_and_udim,
     test_concave_join_has_no_self_overlap,
     test_selection_and_hidden_faces,
+    test_sync_selection_respects_mesh_select_mode,
     test_zero_and_degenerate,
     test_signature_changes,
     test_cached_coordinate_refresh,
