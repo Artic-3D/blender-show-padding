@@ -100,12 +100,12 @@ class UVPADDING_AP_preferences(AddonPreferences):
         update=_geometry_update,
     )
     render_mode: EnumProperty(
-        name="Mode",
+        name="Overlap Mode",
         description="Choose how overlapping outline geometry is composited",
         items=(
             (
                 "LAYERED",
-                "Layered",
+                "Stacked",
                 "Draw every outline separately so overlaps become darker",
             ),
             (

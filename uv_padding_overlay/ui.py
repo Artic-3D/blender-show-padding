@@ -41,9 +41,11 @@ class UVPADDING_PT_overlay(Panel):
             text="Outline Width (px)",
         )
         body.prop(scene_settings, "texture_resolution", text="Resolution")
+        body.separator()
+        body.label(text="Settings")
         body.prop(global_settings, "corner_segments", text="Roundness")
         body.prop(global_settings, "selected_only")
-        body.prop(global_settings, "render_mode", text="Mode")
+        body.prop(global_settings, "render_mode", text="Overlap Mode")
         body.prop(global_settings, "color")
 
         status, icon = overlay.context_status(context)
