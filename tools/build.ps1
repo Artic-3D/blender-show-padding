@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 $workspace = Split-Path -Parent $PSScriptRoot
 $source = Join-Path $workspace "uv_padding_overlay"
 $distribution = Join-Path $workspace "dist"
-$package = Join-Path $distribution "uv_padding_overlay-1.3.5.zip"
+$package = Join-Path $distribution "uv_padding_overlay-1.3.6.zip"
 
 New-Item -ItemType Directory -Force -Path $distribution | Out-Null
 

@@ -187,6 +187,80 @@ def _face_is_touched(
     return False
 
 
+def _selected_island_roots(
+    visible_faces,
+    union_find,
+    uv_layer,
+    uv_select_sync,
+    mesh_select_mode=None,
+):
+    """Resolve selected UV islands without leaking across mesh seams.
+
+    With synchronized selection Blender stores edge/vertex state on the mesh
+    element, not on each UV occurrence. A seam element therefore appears
+    selected in every UV island that uses it. Fully selected faces identify
+    the owning island when a complete shell was selected; ambiguous seam
+    occurrences are then assigned only to those strong roots. Standalone
+    edge/vertex selections remain inclusive when no strong root owns them.
+    """
+
+    roots_by_face = [
+        union_find.find(face_index)
+        for face_index in range(len(visible_faces))
+    ]
+    sample_uv = (
+        visible_faces[0].loops[0][uv_layer]
+        if visible_faces
+        else None
+    )
+    if (
+        not uv_select_sync
+        and sample_uv is not None
+        and hasattr(sample_uv, "select")
+    ):
+        return {
+            roots_by_face[face_index]
+            for face_index, face in enumerate(visible_faces)
+            if _face_is_touched(face, uv_layer, False)
+        }
+
+    strong_roots = {
+        roots_by_face[face_index]
+        for face_index, face in enumerate(visible_faces)
+        if face.select
+    }
+    selected_roots = set(strong_roots)
+    if uv_select_sync:
+        vertex_mode, edge_mode, face_mode = _normalized_mesh_select_mode(
+            mesh_select_mode
+        )
+    else:
+        # Blender 5.3 alpha does not expose unsynchronized per-loop selection.
+        # Consider every mesh element type, using the same seam disambiguation.
+        vertex_mode = edge_mode = face_mode = True
+    if face_mode and not (vertex_mode or edge_mode):
+        return selected_roots
+
+    def add_element_roots(element_name):
+        occurrences = {}
+        for face_index, face in enumerate(visible_faces):
+            root = roots_by_face[face_index]
+            for loop in face.loops:
+                element = getattr(loop, element_name)
+                if not element.select:
+                    continue
+                occurrences.setdefault(element.index, set()).add(root)
+        for roots in occurrences.values():
+            owners = roots.intersection(strong_roots)
+            selected_roots.update(owners if owners else roots)
+
+    if edge_mode:
+        add_element_roots("edge")
+    if vertex_mode:
+        add_element_roots("vert")
+    return selected_roots
+
+
 def _mix_hash(current, value):
     current ^= int(value) & _HASH_MASK
     return (current * _HASH_PRIME) & _HASH_MASK
@@ -582,7 +656,6 @@ def _build_overlay_geometry_with_template(
     fingerprint = _mix_hash(fingerprint, len(bm.faces))
 
     visible_faces = []
-    face_touched = []
     edge_groups = {}
 
     for face in bm.faces:
@@ -602,7 +675,6 @@ def _build_overlay_geometry_with_template(
             if selected_only
             else False
         )
-        face_touched.append(touched)
         if selected_only:
             fingerprint = _mix_hash(fingerprint, int(touched))
 
@@ -650,9 +722,13 @@ def _build_overlay_geometry_with_template(
 
     selected_roots = set()
     if selected_only:
-        for face_index, touched in enumerate(face_touched):
-            if touched:
-                selected_roots.add(union_find.find(face_index))
+        selected_roots = _selected_island_roots(
+            visible_faces,
+            union_find,
+            uv_layer,
+            uv_select_sync,
+            mesh_select_mode,
+        )
 
     boundary_uses = []
     for uses in edge_groups.values():

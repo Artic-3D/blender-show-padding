@@ -343,8 +343,25 @@ def test_sync_selection_respects_mesh_select_mode():
         assert_equal(stats["islands"], 1)
         assert_equal(stats["boundary_edges"], 4)
 
-        # Vertex mode intentionally includes both shells because the shared
-        # mesh vertices represent selected UV occurrences in synchronized mode.
+        for mode in (
+            (False, True, False),
+            (True, False, False),
+        ):
+            _positions, _triangles, stats, _signature = build(
+                bm,
+                uv_layer,
+                selected_only=True,
+                uv_select_sync=True,
+                mesh_select_mode=mode,
+            )
+            assert_equal(stats["islands"], 1)
+            assert_equal(stats["boundary_edges"], 4)
+
+        # A standalone shared vertex has no fully selected face to identify
+        # its UV occurrence, so both possible shells remain conservatively
+        # included rather than guessing.
+        faces[0].select_set(False)
+        faces[0].verts[1].select_set(True)
         _positions, _triangles, stats, _signature = build(
             bm,
             uv_layer,
