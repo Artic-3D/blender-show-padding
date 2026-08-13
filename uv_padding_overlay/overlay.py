@@ -34,6 +34,7 @@ _BMESH_QUIET_DELAY = 0.15
 _MAX_CACHE_ENTRIES = 8
 _UPDATE_INTERVAL = 1.0 / 30.0
 _IDLE_INTERVAL = 0.2
+_STYLE_REDRAW_DELAY = 0.01
 _REGISTERED = False
 _RUNTIME_NAMESPACE_KEY = "_uv_padding_overlay_runtime"
 _RUNTIME_TOKEN = object()
@@ -110,6 +111,28 @@ def tag_uv_editors_for_redraw():
         for area in window.screen.areas:
             if area.type == "IMAGE_EDITOR":
                 area.tag_redraw()
+
+
+def _deferred_style_redraw():
+    """Give newly initialized GPU resources one follow-up editor redraw."""
+
+    if _REGISTERED:
+        tag_uv_editors_for_redraw()
+    return None
+
+
+def request_style_redraw():
+    """Redraw now and once on the next event-loop tick, coalescing requests."""
+
+    tag_uv_editors_for_redraw()
+    if (
+        _REGISTERED
+        and not bpy.app.timers.is_registered(_deferred_style_redraw)
+    ):
+        bpy.app.timers.register(
+            _deferred_style_redraw,
+            first_interval=_STYLE_REDRAW_DELAY,
+        )
 
 
 def invalidate_geometry(clear=False):
@@ -935,6 +958,8 @@ def unregister():
     global _DRAW_HANDLE, _SHADER, _COMPOSITE_SHADER
     global _COMPOSITE_BATCH, _REGISTERED, _RUNTIME_RECORD
     _REGISTERED = False
+    if bpy.app.timers.is_registered(_deferred_style_redraw):
+        bpy.app.timers.unregister(_deferred_style_redraw)
     record = bpy.app.driver_namespace.get(_RUNTIME_NAMESPACE_KEY)
     if isinstance(record, dict) and record.get("token") is _RUNTIME_TOKEN:
         _cleanup_runtime_record(record)

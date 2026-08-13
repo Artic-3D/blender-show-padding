@@ -30,7 +30,7 @@ def _geometry_update(_settings, _context):
 def _style_update(_settings, _context):
     from . import overlay
 
-    overlay.tag_uv_editors_for_redraw()
+    overlay.request_style_redraw()
 
 
 def _outline_width_px(settings):

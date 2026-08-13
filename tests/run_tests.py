@@ -564,6 +564,10 @@ def test_lifecycle_and_persistence():
         assert_close(global_settings.color[3], 0.27, tolerance=1.0e-6)
         assert overlay._DRAW_HANDLE is not None
         assert bpy.app.timers.is_registered(overlay._update_timer)
+        overlay.request_style_redraw()
+        assert bpy.app.timers.is_registered(overlay._deferred_style_redraw)
+        # Background tests have no UI event loop between these assertions.
+        bpy.app.timers.unregister(overlay._deferred_style_redraw)
         assert overlay._depsgraph_update_post in bpy.app.handlers.depsgraph_update_post
         runtime = bpy.app.driver_namespace.get(
             overlay._RUNTIME_NAMESPACE_KEY
@@ -645,6 +649,7 @@ def test_lifecycle_and_persistence():
     assert not hasattr(bpy.types.Scene, "uv_padding_overlay")
     assert overlay._DRAW_HANDLE is None
     assert not bpy.app.timers.is_registered(overlay._update_timer)
+    assert not bpy.app.timers.is_registered(overlay._deferred_style_redraw)
     assert overlay._depsgraph_update_post not in bpy.app.handlers.depsgraph_update_post
     assert overlay._RUNTIME_NAMESPACE_KEY not in bpy.app.driver_namespace
 

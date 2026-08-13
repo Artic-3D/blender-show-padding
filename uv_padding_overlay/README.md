@@ -8,12 +8,12 @@ the mesh or UV coordinates.
 
 1. Open **Edit > Preferences > Get Extensions**.
 2. Open the menu in the top-right corner and choose **Install from Disk**.
-3. Select `uv_padding_overlay-1.3.3.zip`.
+3. Select `uv_padding_overlay-1.3.4.zip`.
 4. Enable **UV Padding Overlay** if Blender does not enable it automatically.
 
 Blender 4.2 through 5.3 is supported.
 
-Version 1.3.3 keeps edit-BMesh inspection out of viewport draw callbacks,
+Version 1.3.4 keeps edit-BMesh inspection out of viewport draw callbacks,
 pauses snapshot reads while a modal transform owns the mesh, and cleans up
 callbacks captured by an earlier extension reload. It also explicitly reloads
 all implementation modules during an in-place package update, preventing a new
