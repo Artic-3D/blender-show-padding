@@ -8,12 +8,12 @@ the mesh or UV coordinates.
 
 1. Open **Edit > Preferences > Get Extensions**.
 2. Open the menu in the top-right corner and choose **Install from Disk**.
-3. Select `uv_padding_overlay-1.3.2.zip`.
+3. Select `uv_padding_overlay-1.3.3.zip`.
 4. Enable **UV Padding Overlay** if Blender does not enable it automatically.
 
 Blender 4.2 through 5.3 is supported.
 
-Version 1.3.2 keeps edit-BMesh inspection out of viewport draw callbacks,
+Version 1.3.3 keeps edit-BMesh inspection out of viewport draw callbacks,
 pauses snapshot reads while a modal transform owns the mesh, and cleans up
 callbacks captured by an earlier extension reload. It also explicitly reloads
 all implementation modules during an in-place package update, preventing a new
@@ -50,7 +50,7 @@ Opacity is controlled by the alpha channel in **Color**.
 - Resolution is a single square dimension and does not depend on the active image.
 - UDIM coordinates and UVs outside the 0–1 tile are supported.
 - **Margin** and **Resolution** are stored per scene in the `.blend` file.
-- Show Padding, Roundness, Selected Only, Overlap Mode, and Color are global extension
+- Show Padding, Selected Only, Mode, Roundness, and Color are global extension
   preferences shared by every scene and `.blend` file.
 - The overlay is available in mesh Edit Mode only.
 - Blender 5.3 alpha does not expose independent, non-synchronized UV selection

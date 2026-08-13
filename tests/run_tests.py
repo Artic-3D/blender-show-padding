@@ -520,7 +520,7 @@ def test_lifecycle_and_persistence():
         assert_equal(global_settings.render_mode, "LAYERED")
         assert_equal(
             global_settings.bl_rna.properties["render_mode"].name,
-            "Overlap Mode",
+            "Mode",
         )
         assert_equal(
             global_settings.bl_rna.properties["render_mode"]
