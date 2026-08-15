@@ -50,6 +50,7 @@ class UVPADDING_OT_step_power_of_two(Operator):
 
 def _draw_power_of_two_field(layout, settings, property_name, text):
     row = layout.row(align=True)
+    row.prop(settings, property_name, text=text)
     previous = row.operator(
         UVPADDING_OT_step_power_of_two.bl_idname,
         text="",
@@ -57,7 +58,6 @@ def _draw_power_of_two_field(layout, settings, property_name, text):
     )
     previous.property_name = property_name
     previous.direction = -1
-    row.prop(settings, property_name, text=text)
     following = row.operator(
         UVPADDING_OT_step_power_of_two.bl_idname,
         text="",
