@@ -527,6 +527,9 @@ def _ensure_composite_resources():
         info.vertex_in(0, "VEC2", "position")
         info.vertex_in(1, "VEC2", "texture_uv")
         info.push_constant("VEC4", "color")
+        info.push_constant("VEC4", "highlight_color")
+        info.push_constant("FLOAT", "mask_scale")
+        info.push_constant("FLOAT", "highlight_threshold")
         info.sampler(0, "FLOAT_2D", "mask_texture")
         info.vertex_out(interface)
         info.fragment_out(0, "VEC4", "fragColor")
@@ -544,7 +547,13 @@ def _ensure_composite_resources():
             void main()
             {
                 float mask = texture(mask_texture, texture_coordinate).a;
-                fragColor = vec4(color.rgb, color.a * mask);
+                float is_overlap = step(highlight_threshold, mask);
+                vec4 display_color = mix(color, highlight_color, is_overlap);
+                float coverage = min(mask * mask_scale, 1.0);
+                fragColor = vec4(
+                    display_color.rgb,
+                    display_color.a * coverage
+                );
             }
             """
         )
@@ -616,7 +625,14 @@ def _draw_layered(entry, view_rect, color):
         gpu.state.depth_test_set(previous_depth)
 
 
-def _draw_unified(context, entry, view_rect, color):
+def _draw_composited(
+    context,
+    entry,
+    view_rect,
+    color,
+    highlight_color,
+    highlighted,
+):
     region = context.region
     width = int(region.width)
     height = int(region.height)
@@ -632,6 +648,7 @@ def _draw_unified(context, entry, view_rect, color):
         context.scene.as_pointer(),
         entry.gpu_revision,
         tuple(float(value) for value in view_rect),
+        bool(highlighted),
     )
     previous_viewport = gpu.state.viewport_get()
     previous_blend = gpu.state.blend_get()
@@ -644,11 +661,16 @@ def _draw_unified(context, entry, view_rect, color):
                     color=(0.0, 0.0, 0.0, 0.0)
                 )
                 gpu.state.depth_test_set("NONE")
-                gpu.state.blend_set("NONE")
+                gpu.state.blend_set("ALPHA" if highlighted else "NONE")
                 mask_shader = _ensure_shader()
                 mask_shader.bind()
                 mask_shader.uniform_float("view_rect", view_rect)
-                mask_shader.uniform_float("color", (1.0, 1.0, 1.0, 1.0))
+                mask_shader.uniform_float(
+                    "color",
+                    (1.0, 1.0, 1.0, 0.5)
+                    if highlighted
+                    else (1.0, 1.0, 1.0, 1.0),
+                )
                 entry.batch.draw(mask_shader)
             offscreen_entry.content_key = content_key
             offscreen_entry.mask_render_count += 1
@@ -657,6 +679,15 @@ def _draw_unified(context, entry, view_rect, color):
         composite_shader, composite_batch = _ensure_composite_resources()
         composite_shader.bind()
         composite_shader.uniform_float("color", color)
+        composite_shader.uniform_float("highlight_color", highlight_color)
+        composite_shader.uniform_float(
+            "mask_scale",
+            2.0 if highlighted else 1.0,
+        )
+        composite_shader.uniform_float(
+            "highlight_threshold",
+            0.625 if highlighted else 2.0,
+        )
         composite_shader.uniform_sampler(
             "mask_texture",
             offscreen_entry.offscreen.texture_color,
@@ -716,8 +747,23 @@ def _draw_overlay():
         if len(global_settings.color) > 3
         else 0.25,
     )
-    if global_settings.render_mode == "UNIFIED":
-        _draw_unified(context, entry, view_rect, color)
+    highlight_color = (
+        float(global_settings.highlight_color[0]),
+        float(global_settings.highlight_color[1]),
+        float(global_settings.highlight_color[2]),
+        float(global_settings.highlight_color[3])
+        if len(global_settings.highlight_color) > 3
+        else 0.65,
+    )
+    if global_settings.render_mode in {"UNIFIED", "HIGHLIGHTED"}:
+        _draw_composited(
+            context,
+            entry,
+            view_rect,
+            color,
+            highlight_color,
+            global_settings.render_mode == "HIGHLIGHTED",
+        )
     else:
         _draw_layered(entry, view_rect, color)
 

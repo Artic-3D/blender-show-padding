@@ -8,21 +8,19 @@ the mesh or UV coordinates.
 
 1. Open **Edit > Preferences > Get Extensions**.
 2. Open the menu in the top-right corner and choose **Install from Disk**.
-3. Select `uv_padding_overlay-1.3.8.zip`.
+3. Select `uv_padding_overlay-1.4.0.zip`.
 4. Enable **UV Padding Overlay** if Blender does not enable it automatically.
 
 Blender 4.2 through 5.3 is supported.
 
-Version 1.3.8 keeps edit-BMesh inspection out of viewport draw callbacks,
-pauses snapshot reads while a modal transform owns the mesh, and cleans up
-callbacks captured by an earlier extension reload. It also explicitly reloads
-all implementation modules during an in-place package update, preventing a new
-manifest from being paired with stale Python code. The last cached band remains
-visible while dragging and refreshes shortly after the transform is released.
+Version 1.4.0 adds the default **Highlighted** mode. It draws ordinary padding
+with **Color** and switches only areas covered by two or more shell outlines to
+the independently configurable **Highlight Color**.
 
-Choose **Stacked** mode to let overlapping outlines darken naturally, or
-**Solid** mode to composite all outlines through one cached mask with no
-visible overlap. The color picker's alpha channel controls overlay opacity.
+Choose **Highlighted** mode to reveal insufficient gaps in a separate color,
+**Stacked** mode to let overlapping outlines darken naturally, or **Solid**
+mode to composite all outlines through one cached mask with no visible overlap.
+Each color picker's alpha channel controls that color's opacity.
 Concave joins are partitioned between adjacent strips, so a shell never
 darkens itself at an inner corner in **Stacked** mode.
 
@@ -43,17 +41,17 @@ margin at 2048 px produces a 0.00390625 UV gap and a 0.001953125 UV band around
 each shell.
 
 **Selected Only** displays a complete shell when any of its visible UV elements
-is selected. **Stacked** mode lets insufficient gaps appear darker where bands
-overlap. **Solid** mode renders one combined mask with constant opacity.
-Opacity is controlled by the alpha channel in **Color**.
+is selected. **Highlighted** mode uses **Highlight Color** where bands overlap.
+**Stacked** mode lets insufficient gaps appear darker, while **Solid** renders
+one combined mask with constant opacity.
 
 ## Notes
 
 - Resolution is a single square dimension and does not depend on the active image.
 - UDIM coordinates and UVs outside the 0–1 tile are supported.
 - **Margin** and **Resolution** are stored per scene in the `.blend` file.
-- Show Padding, Selected Only, Mode, Roundness, and Color are global extension
-  preferences shared by every scene and `.blend` file.
+- Show Padding, Selected Only, Mode, Roundness, Color, and Highlight Color are
+  global extension preferences shared by every scene and `.blend` file.
 - The overlay is available in mesh Edit Mode only.
 - Blender 5.3 alpha does not expose independent, non-synchronized UV selection
   through BMesh. In that provisional API configuration, **Selected Only** falls

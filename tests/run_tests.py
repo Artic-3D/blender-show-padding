@@ -534,6 +534,7 @@ def test_lifecycle_and_persistence():
             "corner_segments",
             "render_mode",
             "color",
+            "highlight_color",
         ):
             if name in scene_property_names:
                 raise AssertionError(f"Global property stored on Scene: {name}")
@@ -566,10 +567,16 @@ def test_lifecycle_and_persistence():
         assert_equal(global_settings.enabled, True)
         assert_equal(global_settings.selected_only, False)
         assert_equal(global_settings.corner_segments, 2)
-        assert_equal(global_settings.render_mode, "LAYERED")
+        assert_equal(global_settings.render_mode, "HIGHLIGHTED")
         assert_equal(
             global_settings.bl_rna.properties["render_mode"].name,
             "Mode",
+        )
+        assert_equal(
+            global_settings.bl_rna.properties["render_mode"]
+            .enum_items["HIGHLIGHTED"]
+            .name,
+            "Highlighted",
         )
         assert_equal(
             global_settings.bl_rna.properties["render_mode"]
@@ -585,6 +592,12 @@ def test_lifecycle_and_persistence():
         )
         assert_equal(len(global_settings.color), 4)
         assert_close(global_settings.color[3], 0.25)
+        assert_equal(len(global_settings.highlight_color), 4)
+        assert_close(
+            global_settings.highlight_color[3],
+            0.65,
+            tolerance=1.0e-6,
+        )
         assert_equal(global_settings.storage_version, 1)
 
         # Simulate raw values left by the v1.2 scene PropertyGroup and verify
@@ -610,7 +623,13 @@ def test_lifecycle_and_persistence():
         global_settings.corner_segments = 7
         global_settings.selected_only = False
         global_settings.color = (0.2, 0.3, 0.4, 0.27)
+        global_settings.highlight_color = (0.9, 0.8, 0.1, 0.72)
         assert_close(global_settings.color[3], 0.27, tolerance=1.0e-6)
+        assert_close(
+            global_settings.highlight_color[3],
+            0.72,
+            tolerance=1.0e-6,
+        )
         assert overlay._DRAW_HANDLE is not None
         assert bpy.app.timers.is_registered(overlay._update_timer)
         overlay.request_style_redraw()
@@ -638,6 +657,11 @@ def test_lifecycle_and_persistence():
         assert_equal(global_settings.render_mode, "UNIFIED")
         assert_equal(global_settings.corner_segments, 7)
         assert_close(global_settings.color[3], 0.27, tolerance=1.0e-6)
+        assert_close(
+            global_settings.highlight_color[3],
+            0.72,
+            tolerance=1.0e-6,
+        )
         replacement = bpy.app.driver_namespace.get(
             overlay._RUNTIME_NAMESPACE_KEY
         )
@@ -669,6 +693,7 @@ def test_lifecycle_and_persistence():
             global_settings.render_mode = "LAYERED"
             global_settings.corner_segments = 3
             global_settings.color = (0.8, 0.7, 0.6, 0.19)
+            global_settings.highlight_color = (0.1, 0.8, 0.9, 0.71)
             bpy.ops.wm.open_mainfile(filepath=blend_path)
             restored_scene_settings = bpy.context.scene.uv_padding_overlay
             restored_global_settings = settings_module.get_preferences()
@@ -687,6 +712,11 @@ def test_lifecycle_and_persistence():
             assert_close(
                 restored_global_settings.color[3],
                 0.19,
+                tolerance=1.0e-6,
+            )
+            assert_close(
+                restored_global_settings.highlight_color[3],
+                0.71,
                 tolerance=1.0e-6,
             )
     finally:

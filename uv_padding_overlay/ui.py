@@ -126,6 +126,7 @@ class UVPADDING_PT_overlay(Panel):
         settings_header.label(text="Settings")
         if settings_body is not None:
             settings_body.prop(global_settings, "color")
+            settings_body.prop(global_settings, "highlight_color")
             settings_body.prop(
                 global_settings,
                 "corner_segments",

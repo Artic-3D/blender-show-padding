@@ -18,6 +18,7 @@ _GLOBAL_SETTING_NAMES = (
     "selected_only",
     "render_mode",
     "color",
+    "highlight_color",
 )
 
 
@@ -104,6 +105,11 @@ class UVPADDING_AP_preferences(AddonPreferences):
         description="Choose how overlapping outline geometry is composited",
         items=(
             (
+                "HIGHLIGHTED",
+                "Highlighted",
+                "Draw overlaps with the separate Highlight Color",
+            ),
+            (
                 "LAYERED",
                 "Stacked",
                 "Draw every outline separately so overlaps become darker",
@@ -114,7 +120,7 @@ class UVPADDING_AP_preferences(AddonPreferences):
                 "Composite all outlines as one mask with no visible overlap",
             ),
         ),
-        default="LAYERED",
+        default="HIGHLIGHTED",
         update=_style_update,
     )
     color: FloatVectorProperty(
@@ -127,6 +133,16 @@ class UVPADDING_AP_preferences(AddonPreferences):
         default=(1.0, 0.05, 0.35, 0.25),
         update=_style_update,
     )
+    highlight_color: FloatVectorProperty(
+        name="Highlight Color",
+        description="Color and opacity used where two or more outlines overlap",
+        subtype="COLOR",
+        size=4,
+        min=0.0,
+        max=1.0,
+        default=(1.0, 0.55, 0.02, 0.65),
+        update=_style_update,
+    )
 
     def draw(self, _context):
         layout = self.layout
@@ -137,6 +153,7 @@ class UVPADDING_AP_preferences(AddonPreferences):
         column.prop(self, "selected_only")
         column.prop(self, "render_mode")
         column.prop(self, "color")
+        column.prop(self, "highlight_color")
 
 
 _CLASSES = (
