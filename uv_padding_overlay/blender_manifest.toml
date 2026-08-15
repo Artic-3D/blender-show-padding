@@ -1,10 +1,11 @@
 schema_version = "1.0.0"
 
 id = "uv_padding_overlay"
-version = "1.5.2"
+version = "1.6.10"
 name = "UV Padding Overlay"
 tagline = "Display padding outline around UV shells"
 maintainer = "Artic"
+website = "https://github.com/Artic-3D/blender-show-padding"
 type = "add-on"
 
 tags = ["UV"]

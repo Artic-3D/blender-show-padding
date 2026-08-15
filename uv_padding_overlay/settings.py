@@ -12,6 +12,9 @@ from bpy.types import AddonPreferences, PropertyGroup
 
 
 ADDON_ID = __package__
+_STORAGE_VERSION = 4
+_OLD_EMPTINESS_COLOR = (0.0, 0.0, 1.0, 0.6)
+_DEFAULT_EMPTINESS_COLOR = (0.0, 0.05, 1.0, 0.6)
 _GLOBAL_SETTING_NAMES = (
     "enabled",
     "corner_segments",
@@ -20,6 +23,7 @@ _GLOBAL_SETTING_NAMES = (
     "thin_width",
     "color",
     "highlight_color",
+    "emptiness_color",
 )
 
 
@@ -35,8 +39,8 @@ def clamp_thin_width_to_margin(context=None, global_settings=None):
         global_settings = get_preferences(context)
     if global_settings is None or not hasattr(global_settings, "thin_width"):
         return None
-    limit = max(0, int(float(scene_settings.margin_px)))
-    current = max(0, int(global_settings.thin_width))
+    limit = max(1, int(float(scene_settings.margin_px)))
+    current = max(1, int(global_settings.thin_width))
     clamped = min(current, limit)
     if clamped != current:
         global_settings.thin_width = clamped
@@ -68,19 +72,18 @@ def _outline_width_px(settings):
 class UVPADDING_PG_scene_settings(PropertyGroup):
     """Values whose meaning belongs to the current texture/scene."""
 
-    margin_px: FloatProperty(
+    margin_px: IntProperty(
         name="Margin",
-        description="Desired total gap between adjacent UV shells, in texture pixels",
-        default=8.0,
-        min=0.0,
-        soft_max=128.0,
-        precision=2,
+        description="Desired integer gap between adjacent UV shells, in texture pixels",
+        default=8,
+        min=0,
+        soft_max=128,
         update=_geometry_update,
     )
     texture_resolution: IntProperty(
         name="Resolution",
         description="Square texture resolution used to convert pixels to UV units",
-        default=2048,
+        default=1024,
         min=1,
         soft_min=64,
         soft_max=16384,
@@ -158,8 +161,8 @@ class UVPADDING_AP_preferences(AddonPreferences):
     thin_width: IntProperty(
         name="Thin Width",
         description="Thin Highlighted outer-line thickness in screen pixels",
-        default=1,
-        min=0,
+        default=2,
+        min=1,
         max=64,
         soft_max=8,
         update=_thin_width_update,
@@ -184,6 +187,19 @@ class UVPADDING_AP_preferences(AddonPreferences):
         default=(1.0, 0.55, 0.02, 0.65),
         update=_style_update,
     )
+    emptiness_color: FloatVectorProperty(
+        name="Emptiness Color",
+        description=(
+            "Experimental emptiness field color and normal maximum opacity; "
+            "the emptiest one percent remains fully opaque"
+        ),
+        subtype="COLOR",
+        size=4,
+        min=0.0,
+        max=1.0,
+        default=_DEFAULT_EMPTINESS_COLOR,
+        update=_style_update,
+    )
 
     def draw(self, context):
         clamp_thin_width_to_margin(context, self)
@@ -198,6 +214,7 @@ class UVPADDING_AP_preferences(AddonPreferences):
             column.prop(self, "thin_width")
         column.prop(self, "color")
         column.prop(self, "highlight_color")
+        layout.prop(self, "emptiness_color")
 
 
 _CLASSES = (
@@ -221,11 +238,36 @@ def get_preferences(context=None):
 
 
 def migrate_legacy_scene_settings(context=None):
-    """Move v1.2 scene-bound display values to global preferences once."""
+    """Apply preference migrations without replacing customized colors."""
 
     global_settings = get_preferences(context)
-    if global_settings is None or global_settings.storage_version >= 1:
+    if (
+        global_settings is None
+        or global_settings.storage_version >= _STORAGE_VERSION
+    ):
         return False
+    previous_version = int(global_settings.storage_version)
+    migrated = False
+    if previous_version < 2:
+        current_color = tuple(float(value) for value in global_settings.emptiness_color)
+        if all(
+            abs(current - old) <= 1.0e-6
+            for current, old in zip(current_color, _OLD_EMPTINESS_COLOR)
+        ):
+            global_settings.emptiness_color = _DEFAULT_EMPTINESS_COLOR
+            migrated = True
+    if previous_version < 3:
+        stored_thin_width = int(global_settings.thin_width)
+        if stored_thin_width < 1:
+            global_settings.thin_width = 1
+            migrated = True
+    if previous_version < 4 and int(global_settings.thin_width) == 1:
+        global_settings.thin_width = 2
+        migrated = True
+    if previous_version >= 1:
+        global_settings.storage_version = _STORAGE_VERSION
+        return migrated
+
     context = context or bpy.context
     active_scene = getattr(context, "scene", None)
     try:
@@ -238,7 +280,6 @@ def migrate_legacy_scene_settings(context=None):
     if active_scene is not None:
         scenes.append(active_scene)
     scenes.extend(scene for scene in available_scenes if scene != active_scene)
-    migrated = False
     for scene in scenes:
         legacy = getattr(scene, "uv_padding_overlay", None)
         if legacy is None:
@@ -263,7 +304,7 @@ def migrate_legacy_scene_settings(context=None):
         for name in _GLOBAL_SETTING_NAMES:
             if name in legacy:
                 del legacy[name]
-    global_settings.storage_version = 1
+    global_settings.storage_version = _STORAGE_VERSION
     return migrated
 
 
@@ -271,10 +312,14 @@ def _deferred_migration():
     global_settings = get_preferences()
     if global_settings is None:
         return 0.1
-    if global_settings.storage_version >= 1:
+    if global_settings.storage_version >= _STORAGE_VERSION:
         return None
     migrate_legacy_scene_settings()
-    return None if global_settings.storage_version >= 1 else 0.1
+    return (
+        None
+        if global_settings.storage_version >= _STORAGE_VERSION
+        else 0.1
+    )
 
 
 def register():

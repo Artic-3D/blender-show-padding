@@ -1,6 +1,7 @@
 # UV Padding Overlay
 
-Source repository for the Blender 4.2–5.3 UV Padding Overlay extension.
+Source repository for the Blender 4.2–5.3 UV Padding Overlay extension,
+including its experimental manually calculated UV emptiness field.
 
 ![UV Padding Overlay in Blender](assets/blender-show-padding-shot.png)
 

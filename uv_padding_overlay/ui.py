@@ -64,9 +64,7 @@ class UVPADDING_OT_step_power_of_two(Operator):
         settings = context.scene.uv_padding_overlay
         current = getattr(settings, self.property_name)
         target = _adjacent_power_of_two(current, self.direction)
-        if self.property_name == "texture_resolution":
-            target = int(target)
-        setattr(settings, self.property_name, target)
+        setattr(settings, self.property_name, int(target))
         return {"FINISHED"}
 
 
@@ -105,7 +103,7 @@ class UVPADDING_PT_overlay(Panel):
         return area.ui_type == "UV" or getattr(space, "ui_mode", "") == "UV"
 
     def draw(self, context):
-        from . import overlay, settings as settings_module
+        from . import emptiness, overlay, settings as settings_module
 
         layout = self.layout
         scene_settings = context.scene.uv_padding_overlay
@@ -137,16 +135,17 @@ class UVPADDING_PT_overlay(Panel):
             "texture_resolution",
             "Resolution",
         )
-        body.label(
-            text=(
-                "Outline Width: "
-                f"{scene_settings.outline_width_px:.2f} px"
-            )
+        outline_row = body.row(align=True)
+        outline_prefix = outline_row.row(align=True)
+        outline_prefix.enabled = False
+        outline_prefix.label(text="     Outline: ")
+        outline_row.label(
+            text=f"{scene_settings.outline_width_px:.2f} px"
         )
         body.separator()
         settings_header, settings_body = body.panel(
-            "uv_padding_overlay_settings",
-            default_closed=False,
+            "uv_padding_overlay_settings_v2",
+            default_closed=True,
         )
         settings_header.label(text="Settings")
         if settings_body is not None:
@@ -165,6 +164,29 @@ class UVPADDING_PT_overlay(Panel):
         status, icon = overlay.context_status(context)
         if status is not None:
             body.label(text=status, icon=icon)
+
+        layout.separator()
+        experimental_header, experimental_body = layout.panel(
+            "uv_padding_overlay_experimental_v2",
+            default_closed=True,
+        )
+        experimental_header.label(text="Experimental")
+        if experimental_body is not None:
+            row = experimental_body.split(factor=0.88, align=True)
+            row.operator(
+                emptiness.UVPADDING_OT_calculate_emptiness.bl_idname,
+                text="Calculate Emptiness",
+            )
+            row.operator(
+                emptiness.UVPADDING_OT_clear_emptiness.bl_idname,
+                text="",
+                icon="X",
+            )
+            experimental_body.prop(
+                global_settings,
+                "emptiness_color",
+                text="Color",
+            )
 
 
 _CLASSES = (

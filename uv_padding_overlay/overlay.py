@@ -819,7 +819,7 @@ def _draw_composited(
 
 
 def _draw_overlay():
-    from . import settings as settings_module
+    from . import emptiness, settings as settings_module
 
     context = bpy.context
     area = context.area
@@ -836,8 +836,19 @@ def _draw_overlay():
     ):
         return
     scene = context.scene
+    view = region.view2d
+    minimum = view.region_to_view(0, 0)
+    maximum = view.region_to_view(region.width, region.height)
+    view_rect = (minimum[0], minimum[1], maximum[0], maximum[1])
     scene_settings = getattr(scene, "uv_padding_overlay", None)
     global_settings = settings_module.get_preferences(context)
+    emptiness_color = (
+        tuple(float(value) for value in global_settings.emptiness_color)
+        if global_settings is not None
+        and hasattr(global_settings, "emptiness_color")
+        else (0.0, 0.05, 1.0, 0.6)
+    )
+    emptiness.draw(scene, view_rect, emptiness_color)
     if (
         scene_settings is None
         or global_settings is None
@@ -852,10 +863,6 @@ def _draw_overlay():
     if entry.batch is None:
         return
     entry.last_used = time.monotonic()
-    view = region.view2d
-    minimum = view.region_to_view(0, 0)
-    maximum = view.region_to_view(region.width, region.height)
-    view_rect = (minimum[0], minimum[1], maximum[0], maximum[1])
     color = (
         float(global_settings.color[0]),
         float(global_settings.color[1]),
@@ -1038,8 +1045,11 @@ def _depsgraph_update_post(_scene, depsgraph):
 
 @persistent
 def _reset_after_file_change(_unused):
+    from . import emptiness
+
     if _RUNTIME_RECORD is not None:
         bpy.app.driver_namespace[_RUNTIME_NAMESPACE_KEY] = _RUNTIME_RECORD
+    emptiness.clear_all(redraw=False)
     invalidate_geometry(clear=True)
     _ensure_update_timer()
 
@@ -1131,6 +1141,9 @@ def unregister():
     global _DRAW_HANDLE, _SHADER, _COMPOSITE_SHADER, _OUTER_LINE_SHADER
     global _COMPOSITE_BATCH, _REGISTERED, _RUNTIME_RECORD
     _REGISTERED = False
+    from . import emptiness
+
+    emptiness.clear_all(redraw=False)
     if bpy.app.timers.is_registered(_deferred_style_redraw):
         bpy.app.timers.unregister(_deferred_style_redraw)
     record = bpy.app.driver_namespace.get(_RUNTIME_NAMESPACE_KEY)

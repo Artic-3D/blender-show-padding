@@ -15,6 +15,7 @@ import traceback
 
 import bmesh
 import bpy
+from mathutils import Vector
 
 
 WORKSPACE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -22,7 +23,13 @@ if WORKSPACE not in sys.path:
     sys.path.insert(0, WORKSPACE)
 
 import uv_padding_overlay as addon
-from uv_padding_overlay import geometry, overlay, settings as settings_module, ui
+from uv_padding_overlay import (
+    emptiness,
+    geometry,
+    overlay,
+    settings as settings_module,
+    ui,
+)
 
 
 def assert_equal(actual, expected, message=""):
@@ -160,6 +167,99 @@ def test_power_of_two_steps():
     assert_close(geometry.compute_band_width(8.0, 0), 4.0)
     overlap_alpha = 0.5 + 0.5 * (1.0 - 0.5)
     assert_close(overlap_alpha, 0.75)
+
+
+def test_emptiness_distance_field():
+    width = 5
+    height = 5
+    occupancy = [False] * (width * height)
+    occupancy[2 * width + 2] = True
+    field, maximum_pixels, highlight_threshold = emptiness._distance_field(
+        occupancy,
+        width,
+        height,
+    )
+    assert_close(maximum_pixels, math.sqrt(8.0))
+    assert_close(field[2 * width + 2], 0.0)
+    assert_close(field[0], 1.0)
+    assert_close(field[2 * width + 1], 1.0 / math.sqrt(8.0))
+    assert_close(highlight_threshold, 1.0)
+    if not all(0.0 <= value <= 1.0 for value in field):
+        raise AssertionError("Emptiness field escaped its normalized range")
+
+    filled, filled_maximum, filled_threshold = emptiness._distance_field(
+        [True] * 9,
+        3,
+        3,
+    )
+    assert_equal(filled, [0.0] * 9)
+    assert_close(filled_maximum, 0.0)
+    assert_close(filled_threshold, 2.0)
+
+    percentile_occupancy = [True] + [False] * 200
+    _, percentile_maximum, percentile_threshold = emptiness._distance_field(
+        percentile_occupancy,
+        201,
+        1,
+    )
+    assert_close(percentile_maximum, 200.0)
+    assert_close(percentile_threshold, 199.0 / 200.0)
+
+    padded_occupancy = [True] + [False] * 5
+    padded, padded_maximum, padded_threshold = emptiness._distance_field(
+        padded_occupancy,
+        6,
+        1,
+        padding_radius_pixels=2.0,
+    )
+    assert_equal(padded[:3], [0.0, 0.0, 0.0])
+    assert_close(padded[3], 1.0 / 3.0)
+    assert_close(padded[4], 2.0 / 3.0)
+    assert_close(padded[5], 1.0)
+    assert_close(padded_maximum, 3.0)
+    assert_close(padded_threshold, 1.0)
+
+    try:
+        emptiness._distance_field([False] * 9, 3, 3)
+    except emptiness.EmptinessError:
+        pass
+    else:
+        raise AssertionError("An empty occupancy mask should be rejected")
+
+
+def test_emptiness_udim_domain():
+    bounds, width, height, pixels_per_uv = emptiness._main_udim_domain()
+    assert_equal(bounds, (0.0, 0.0, 1.0, 1.0))
+    assert_equal(width, 512)
+    assert_equal(height, 512)
+    assert_equal(pixels_per_uv, 512)
+
+    inside = [Vector((0.2, 0.2)), Vector((0.8, 0.2)), Vector((0.5, 0.8))]
+    crossing = [Vector((-0.2, 0.2)), Vector((0.2, 0.2)), Vector((0.0, 0.8))]
+    outside = [Vector((1.2, 0.2)), Vector((1.8, 0.2)), Vector((1.5, 0.8))]
+    assert_equal(emptiness._triangle_touches_main_udim(inside), True)
+    assert_equal(emptiness._triangle_touches_main_udim(crossing), True)
+    assert_equal(emptiness._triangle_touches_main_udim(outside), False)
+
+    class LegacyTexture:
+        pass
+
+    class ModernTexture:
+        def __init__(self):
+            self.filtering = None
+            self.extension = None
+
+        def filter_mode(self, enabled):
+            self.filtering = enabled
+
+        def extend_mode(self, mode):
+            self.extension = mode
+
+    emptiness._configure_texture_sampling(LegacyTexture())
+    modern_texture = ModernTexture()
+    emptiness._configure_texture_sampling(modern_texture)
+    assert_equal(modern_texture.filtering, True)
+    assert_equal(modern_texture.extension, "EXTEND")
 
 
 def test_single_square_and_mirror():
@@ -570,6 +670,10 @@ def test_lifecycle_and_persistence():
         for name in ("margin_px", "texture_resolution", "outline_width_px"):
             if name not in scene_property_names:
                 raise AssertionError(f"Missing scene property: {name}")
+        assert_equal(
+            scene_settings.bl_rna.properties["margin_px"].type,
+            "INT",
+        )
         for name in (
             "enabled",
             "selected_only",
@@ -578,14 +682,15 @@ def test_lifecycle_and_persistence():
             "thin_width",
             "color",
             "highlight_color",
+            "emptiness_color",
         ):
             if name in scene_property_names:
                 raise AssertionError(f"Global property stored on Scene: {name}")
 
-        assert_close(scene_settings.margin_px, 8.0)
-        assert_equal(scene_settings.texture_resolution, 2048)
+        assert_equal(scene_settings.margin_px, 8)
+        assert_equal(scene_settings.texture_resolution, 1024)
         assert_close(scene_settings.outline_width_px, 4.0)
-        scene_settings.margin_px = 10.0
+        scene_settings.margin_px = 10
         assert_equal(
             bpy.ops.uv_padding_overlay.step_power_of_two(
                 property_name="margin_px",
@@ -593,14 +698,14 @@ def test_lifecycle_and_persistence():
             ),
             {"FINISHED"},
         )
-        assert_close(scene_settings.margin_px, 8.0)
-        scene_settings.margin_px = 7.5
-        assert_close(scene_settings.margin_px, 7.5)
+        assert_equal(scene_settings.margin_px, 8)
+        scene_settings.margin_px = 7
+        assert_equal(scene_settings.margin_px, 7)
         bpy.ops.uv_padding_overlay.step_power_of_two(
             property_name="margin_px",
             direction=1,
         )
-        assert_close(scene_settings.margin_px, 8.0)
+        assert_equal(scene_settings.margin_px, 8)
         scene_settings.texture_resolution = 3000
         bpy.ops.uv_padding_overlay.step_power_of_two(
             property_name="texture_resolution",
@@ -608,6 +713,10 @@ def test_lifecycle_and_persistence():
         )
         assert_equal(scene_settings.texture_resolution, 2048)
         assert_equal(global_settings.enabled, True)
+        assert_close(
+            emptiness._padding_width_for_scene(bpy.context.scene),
+            0.001953125,
+        )
         assert_equal(
             ui.UVPADDING_OT_toggle_padding.bl_label,
             "Show Padding",
@@ -615,28 +724,58 @@ def test_lifecycle_and_persistence():
         if "INTERNAL" in ui.UVPADDING_OT_toggle_padding.bl_options:
             raise AssertionError("Show Padding must remain searchable")
         assert_equal(
+            emptiness.UVPADDING_OT_calculate_emptiness.bl_label,
+            "Calculate Emptiness",
+        )
+        assert_equal(
+            emptiness.UVPADDING_OT_clear_emptiness.bl_label,
+            "Clear Emptiness",
+        )
+        if "INTERNAL" in emptiness.UVPADDING_OT_calculate_emptiness.bl_options:
+            raise AssertionError("Calculate Emptiness must remain searchable")
+        if "INTERNAL" in emptiness.UVPADDING_OT_clear_emptiness.bl_options:
+            raise AssertionError("Clear Emptiness must remain searchable")
+        assert_equal(
+            bpy.ops.uv_padding_overlay.clear_emptiness(),
+            {"FINISHED"},
+        )
+        assert_equal(
             bpy.ops.uv_padding_overlay.toggle_padding(),
             {"FINISHED"},
         )
         assert_equal(global_settings.enabled, False)
+        assert_close(
+            emptiness._padding_width_for_scene(bpy.context.scene),
+            0.0,
+        )
         assert_equal(
             bpy.ops.uv_padding_overlay.toggle_padding(),
             {"FINISHED"},
         )
         assert_equal(global_settings.enabled, True)
+        assert_close(
+            emptiness._padding_width_for_scene(bpy.context.scene),
+            0.001953125,
+        )
         assert_equal(global_settings.selected_only, False)
         assert_equal(global_settings.corner_segments, 2)
         assert_equal(global_settings.render_mode, "HIGHLIGHTED")
+        assert_equal(global_settings.thin_width, 2)
+        assert_equal(
+            global_settings.bl_rna.properties["thin_width"].hard_min,
+            1,
+        )
+        global_settings.thin_width = 0
         assert_equal(global_settings.thin_width, 1)
         global_settings.thin_width = 12
         assert_equal(global_settings.thin_width, 8)
-        scene_settings.margin_px = 3.75
+        scene_settings.margin_px = 3
         assert_equal(global_settings.thin_width, 3)
         global_settings.thin_width = 9
         assert_equal(global_settings.thin_width, 3)
-        scene_settings.margin_px = 0.5
-        assert_equal(global_settings.thin_width, 0)
-        scene_settings.margin_px = 8.0
+        scene_settings.margin_px = 0
+        assert_equal(global_settings.thin_width, 1)
+        scene_settings.margin_px = 8
         global_settings.thin_width = 1
         assert_equal(
             global_settings.bl_rna.properties["render_mode"].name,
@@ -674,7 +813,20 @@ def test_lifecycle_and_persistence():
             0.65,
             tolerance=1.0e-6,
         )
-        assert_equal(global_settings.storage_version, 1)
+        assert_equal(len(global_settings.emptiness_color), 4)
+        assert_close(global_settings.emptiness_color[0], 0.0)
+        assert_close(
+            global_settings.emptiness_color[1],
+            0.05,
+            tolerance=1.0e-6,
+        )
+        assert_close(global_settings.emptiness_color[2], 1.0)
+        assert_close(
+            global_settings.emptiness_color[3],
+            0.6,
+            tolerance=1.0e-6,
+        )
+        assert_equal(global_settings.storage_version, 4)
 
         # Simulate raw values left by the v1.2 scene PropertyGroup and verify
         # that a first-run migration adopts and removes them.
@@ -684,7 +836,7 @@ def test_lifecycle_and_persistence():
         scene_settings["render_mode"] = "UNIFIED"
         scene_settings["color"] = [0.1, 0.2, 0.3, 0.4]
         assert_equal(settings_module.migrate_legacy_scene_settings(), True)
-        assert_equal(global_settings.storage_version, 1)
+        assert_equal(global_settings.storage_version, 4)
         assert_equal(global_settings.selected_only, True)
         assert_equal(global_settings.corner_segments, 9)
         assert_equal(global_settings.render_mode, "UNIFIED")
@@ -693,18 +845,44 @@ def test_lifecycle_and_persistence():
             if name in scene_settings:
                 raise AssertionError(f"Legacy scene value was not removed: {name}")
 
-        scene_settings.margin_px = 18.0
+        global_settings.storage_version = 3
+        global_settings.thin_width = 1
+        assert_equal(settings_module.migrate_legacy_scene_settings(), True)
+        assert_equal(global_settings.storage_version, 4)
+        assert_equal(global_settings.thin_width, 2)
+
+        # Adopt the revised default only when the previous exact default is
+        # still present. Customized colors must remain untouched.
+        global_settings.storage_version = 1
+        global_settings.emptiness_color = (0.0, 0.0, 1.0, 0.6)
+        assert_equal(settings_module.migrate_legacy_scene_settings(), True)
+        assert_equal(global_settings.storage_version, 4)
+        assert_close(
+            global_settings.emptiness_color[1],
+            0.05,
+            tolerance=1.0e-6,
+        )
+
+        scene_settings.margin_px = 18
         assert_close(scene_settings.outline_width_px, 9.0)
+        scene_settings.margin_px = 7
+        assert_close(scene_settings.outline_width_px, 3.5)
         global_settings.render_mode = "UNIFIED"
         global_settings.corner_segments = 7
         global_settings.thin_width = 4
         global_settings.selected_only = False
         global_settings.color = (0.2, 0.3, 0.4, 0.27)
         global_settings.highlight_color = (0.9, 0.8, 0.1, 0.72)
+        global_settings.emptiness_color = (0.1, 0.2, 0.8, 0.45)
         assert_close(global_settings.color[3], 0.27, tolerance=1.0e-6)
         assert_close(
             global_settings.highlight_color[3],
             0.72,
+            tolerance=1.0e-6,
+        )
+        assert_close(
+            global_settings.emptiness_color[3],
+            0.45,
             tolerance=1.0e-6,
         )
         assert overlay._DRAW_HANDLE is not None
@@ -740,6 +918,11 @@ def test_lifecycle_and_persistence():
             0.72,
             tolerance=1.0e-6,
         )
+        assert_close(
+            global_settings.emptiness_color[3],
+            0.45,
+            tolerance=1.0e-6,
+        )
         replacement = bpy.app.driver_namespace.get(
             overlay._RUNTIME_NAMESPACE_KEY
         )
@@ -757,14 +940,17 @@ def test_lifecycle_and_persistence():
             shader = overlay._ensure_shader()
             if shader is None:
                 raise AssertionError("GPU shader was not created")
+            emptiness_shader = emptiness._ensure_shader()
+            if emptiness_shader is None:
+                raise AssertionError("Emptiness GPU shader was not created")
 
         scene_settings = bpy.context.scene.uv_padding_overlay
-        scene_settings.margin_px = 12.5
+        scene_settings.margin_px = 13
         scene_settings.texture_resolution = 4096
         with tempfile.TemporaryDirectory() as temporary_directory:
             blend_path = os.path.join(temporary_directory, "settings.blend")
             bpy.ops.wm.save_as_mainfile(filepath=blend_path)
-            scene_settings.margin_px = 2.0
+            scene_settings.margin_px = 2
             scene_settings.texture_resolution = 1024
             global_settings.enabled = False
             global_settings.selected_only = True
@@ -773,10 +959,11 @@ def test_lifecycle_and_persistence():
             global_settings.thin_width = 2
             global_settings.color = (0.8, 0.7, 0.6, 0.19)
             global_settings.highlight_color = (0.1, 0.8, 0.9, 0.71)
+            global_settings.emptiness_color = (0.6, 0.2, 0.9, 0.38)
             bpy.ops.wm.open_mainfile(filepath=blend_path)
             restored_scene_settings = bpy.context.scene.uv_padding_overlay
             restored_global_settings = settings_module.get_preferences()
-            assert_close(restored_scene_settings.margin_px, 12.5)
+            assert_equal(restored_scene_settings.margin_px, 13)
             assert_equal(restored_scene_settings.texture_resolution, 4096)
             assert_equal(restored_global_settings.enabled, False)
             assert_equal(restored_global_settings.selected_only, True)
@@ -799,6 +986,11 @@ def test_lifecycle_and_persistence():
                 0.71,
                 tolerance=1.0e-6,
             )
+            assert_close(
+                restored_global_settings.emptiness_color[3],
+                0.38,
+                tolerance=1.0e-6,
+            )
     finally:
         addon.unregister()
         if created_addon_entry:
@@ -816,6 +1008,8 @@ def test_lifecycle_and_persistence():
 TESTS = (
     test_conversion,
     test_power_of_two_steps,
+    test_emptiness_distance_field,
+    test_emptiness_udim_domain,
     test_single_square_and_mirror,
     test_roundness_segment_count,
     test_outer_outline_segments,

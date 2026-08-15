@@ -16,15 +16,20 @@ if "overlay" in locals():
     ):
         unregister()
     importlib.reload(geometry)
+    if "emptiness" in locals():
+        importlib.reload(emptiness)
+    else:
+        from . import emptiness
     importlib.reload(overlay)
     importlib.reload(settings)
     importlib.reload(ui)
 else:
-    from . import geometry, overlay, settings, ui
+    from . import emptiness, geometry, overlay, settings, ui
 
 
 def register():
     settings.register()
+    emptiness.register()
     ui.register()
     overlay.register()
 
@@ -32,4 +37,5 @@ def register():
 def unregister():
     overlay.unregister()
     ui.unregister()
+    emptiness.unregister()
     settings.unregister()
