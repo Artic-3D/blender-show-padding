@@ -2,6 +2,8 @@
 
 Source repository for the Blender 4.2–5.3 UV Padding Overlay extension.
 
+![UV Padding Overlay in Blender](assets/blender-show-padding-shot.png)
+
 The extension source is in `uv_padding_overlay/`. Build and validation scripts
 are in `tools/`, while Blender-hosted tests are in `tests/`.
 
