@@ -22,6 +22,28 @@ def _adjacent_power_of_two(value, direction):
     return float(2**exponent)
 
 
+class UVPADDING_OT_toggle_padding(Operator):
+    bl_idname = "uv_padding_overlay.toggle_padding"
+    bl_label = "Show Padding"
+    bl_description = "Toggle the UV padding overlay"
+    bl_options = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context):
+        from . import settings as settings_module
+
+        return settings_module.get_preferences(context) is not None
+
+    def execute(self, context):
+        from . import settings as settings_module
+
+        global_settings = settings_module.get_preferences(context)
+        if global_settings is None:
+            return {"CANCELLED"}
+        global_settings.enabled = not global_settings.enabled
+        return {"FINISHED"}
+
+
 class UVPADDING_OT_step_power_of_two(Operator):
     bl_idname = "uv_padding_overlay.step_power_of_two"
     bl_label = "Step to Adjacent Power of Two"
@@ -91,11 +113,10 @@ class UVPADDING_PT_overlay(Panel):
         if global_settings is None:
             layout.label(text="Global preferences unavailable", icon="INFO")
             return
-        layout.prop(
-            global_settings,
-            "enabled",
+        layout.operator(
+            UVPADDING_OT_toggle_padding.bl_idname,
             text="Show Padding",
-            toggle=True,
+            depress=global_settings.enabled,
         )
 
         body = layout.column()
@@ -141,6 +162,7 @@ class UVPADDING_PT_overlay(Panel):
 
 
 _CLASSES = (
+    UVPADDING_OT_toggle_padding,
     UVPADDING_OT_step_power_of_two,
     UVPADDING_PT_overlay,
 )

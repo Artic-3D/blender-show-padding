@@ -8,14 +8,14 @@ the mesh or UV coordinates.
 
 1. Open **Edit > Preferences > Get Extensions**.
 2. Open the menu in the top-right corner and choose **Install from Disk**.
-3. Select `uv_padding_overlay-1.4.0.zip`.
+3. Select `uv_padding_overlay-1.4.1.zip`.
 4. Enable **UV Padding Overlay** if Blender does not enable it automatically.
 
 Blender 4.2 through 5.3 is supported.
 
-Version 1.4.0 adds the default **Highlighted** mode. It draws ordinary padding
-with **Color** and switches only areas covered by two or more shell outlines to
-the independently configurable **Highlight Color**.
+Version 1.4.1 makes **Show Padding** a searchable Blender operator. Right-click
+the button to choose **Assign Shortcut** or **Add to Quick Favorites** while
+retaining its normal toggle-button behavior.
 
 Choose **Highlighted** mode to reveal insufficient gaps in a separate color,
 **Stacked** mode to let overlapping outlines darken naturally, or **Solid**
@@ -28,6 +28,8 @@ darkens itself at an inner corner in **Stacked** mode.
 
 1. Enter mesh Edit Mode and open the UV Editor.
 2. Open the sidebar with `N` and select the **Padding** tab.
+   Right-click **Show Padding** to assign a hotkey or add the action to Quick
+   Favorites. It is also available as **Show Padding** in operator search.
 3. Set **Margin (px)** and **Resolution**. **Outline Width** displays the
    derived per-shell width (`Margin / 2`) in pixels.
    The arrow buttons step to adjacent powers of two; typing still accepts any

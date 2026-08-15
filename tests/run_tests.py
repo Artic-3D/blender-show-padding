@@ -565,6 +565,22 @@ def test_lifecycle_and_persistence():
         )
         assert_equal(scene_settings.texture_resolution, 2048)
         assert_equal(global_settings.enabled, True)
+        assert_equal(
+            ui.UVPADDING_OT_toggle_padding.bl_label,
+            "Show Padding",
+        )
+        if "INTERNAL" in ui.UVPADDING_OT_toggle_padding.bl_options:
+            raise AssertionError("Show Padding must remain searchable")
+        assert_equal(
+            bpy.ops.uv_padding_overlay.toggle_padding(),
+            {"FINISHED"},
+        )
+        assert_equal(global_settings.enabled, False)
+        assert_equal(
+            bpy.ops.uv_padding_overlay.toggle_padding(),
+            {"FINISHED"},
+        )
+        assert_equal(global_settings.enabled, True)
         assert_equal(global_settings.selected_only, False)
         assert_equal(global_settings.corner_segments, 2)
         assert_equal(global_settings.render_mode, "HIGHLIGHTED")
