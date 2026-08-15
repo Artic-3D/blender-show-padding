@@ -22,7 +22,7 @@ if WORKSPACE not in sys.path:
     sys.path.insert(0, WORKSPACE)
 
 import uv_padding_overlay as addon
-from uv_padding_overlay import geometry, overlay, settings as settings_module
+from uv_padding_overlay import geometry, overlay, settings as settings_module, ui
 
 
 def assert_equal(actual, expected, message=""):
@@ -146,6 +146,16 @@ def build(
 
 def test_conversion():
     assert_close(geometry.compute_band_width(8.0, 2048), 0.001953125)
+
+
+def test_power_of_two_steps():
+    assert_close(ui._adjacent_power_of_two(1.0, 1), 2.0)
+    assert_close(ui._adjacent_power_of_two(2.0, 1), 4.0)
+    assert_close(ui._adjacent_power_of_two(8.0, -1), 4.0)
+    assert_close(ui._adjacent_power_of_two(10.0, -1), 8.0)
+    assert_close(ui._adjacent_power_of_two(10.0, 1), 16.0)
+    assert_close(ui._adjacent_power_of_two(7.5, -1), 4.0)
+    assert_close(ui._adjacent_power_of_two(7.5, 1), 8.0)
     assert_close(geometry.compute_band_width(-2.0, 2048), 0.0)
     assert_close(geometry.compute_band_width(8.0, 0), 4.0)
     overlap_alpha = 0.5 + 0.5 * (1.0 - 0.5)
@@ -531,6 +541,28 @@ def test_lifecycle_and_persistence():
         assert_close(scene_settings.margin_px, 8.0)
         assert_equal(scene_settings.texture_resolution, 2048)
         assert_close(scene_settings.outline_width_px, 4.0)
+        scene_settings.margin_px = 10.0
+        assert_equal(
+            bpy.ops.uv_padding_overlay.step_power_of_two(
+                property_name="margin_px",
+                direction=-1,
+            ),
+            {"FINISHED"},
+        )
+        assert_close(scene_settings.margin_px, 8.0)
+        scene_settings.margin_px = 7.5
+        assert_close(scene_settings.margin_px, 7.5)
+        bpy.ops.uv_padding_overlay.step_power_of_two(
+            property_name="margin_px",
+            direction=1,
+        )
+        assert_close(scene_settings.margin_px, 8.0)
+        scene_settings.texture_resolution = 3000
+        bpy.ops.uv_padding_overlay.step_power_of_two(
+            property_name="texture_resolution",
+            direction=-1,
+        )
+        assert_equal(scene_settings.texture_resolution, 2048)
         assert_equal(global_settings.enabled, True)
         assert_equal(global_settings.selected_only, False)
         assert_equal(global_settings.corner_segments, 2)
@@ -673,6 +705,7 @@ def test_lifecycle_and_persistence():
 
 TESTS = (
     test_conversion,
+    test_power_of_two_steps,
     test_single_square_and_mirror,
     test_roundness_segment_count,
     test_connected_faces_and_seam,

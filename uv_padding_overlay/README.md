@@ -8,12 +8,12 @@ the mesh or UV coordinates.
 
 1. Open **Edit > Preferences > Get Extensions**.
 2. Open the menu in the top-right corner and choose **Install from Disk**.
-3. Select `uv_padding_overlay-1.3.6.zip`.
+3. Select `uv_padding_overlay-1.3.7.zip`.
 4. Enable **UV Padding Overlay** if Blender does not enable it automatically.
 
 Blender 4.2 through 5.3 is supported.
 
-Version 1.3.6 keeps edit-BMesh inspection out of viewport draw callbacks,
+Version 1.3.7 keeps edit-BMesh inspection out of viewport draw callbacks,
 pauses snapshot reads while a modal transform owns the mesh, and cleans up
 callbacks captured by an earlier extension reload. It also explicitly reloads
 all implementation modules during an in-place package update, preventing a new
@@ -32,6 +32,8 @@ darkens itself at an inner corner in **Stacked** mode.
 2. Open the sidebar with `N` and select the **Padding** tab.
 3. Set **Margin (px)** and **Resolution**. **Outline Width** displays the
    derived per-shell width (`Margin / 2`) in pixels.
+   The arrow buttons step to adjacent powers of two; typing still accepts any
+   value allowed by the field.
 4. Set **Roundness** to the number of segments generated per 90-degree round
    corner. Semicircular fallback caps use twice that number.
 
