@@ -204,6 +204,41 @@ def test_roundness_segment_count():
         bm.free()
 
 
+def test_outer_outline_segments():
+    bm, uv_layer, _faces = square_fixture()
+    try:
+        (
+            positions,
+            triangles,
+            stats,
+            _signature,
+            topology,
+        ) = geometry.build_overlay_geometry_with_template(
+            bm,
+            uv_layer,
+            0.1,
+            corner_segments=2,
+        )
+        assert_equal(stats["triangles"], len(triangles))
+        assert_equal(len(topology.outer_segments), 12)
+        inner_indices = {
+            index
+            for use in topology.boundary_uses
+            for index in (use.inner_start, use.inner_end)
+        }
+        for first, second in topology.outer_segments:
+            if first in inner_indices or second in inner_indices:
+                raise AssertionError("Closed-shell outline contains an inner edge")
+            midpoint = (
+                (positions[first][0] + positions[second][0]) * 0.5,
+                (positions[first][1] + positions[second][1]) * 0.5,
+            )
+            if 0.0 < midpoint[0] < 1.0 and 0.0 < midpoint[1] < 1.0:
+                raise AssertionError("Outer outline entered the UV shell")
+    finally:
+        bm.free()
+
+
 def test_connected_faces_and_seam():
     bm, uv_layer, _faces = adjacent_fixture(seam=False)
     try:
@@ -456,6 +491,13 @@ def test_cached_coordinate_refresh():
         assert_equal(stats["boundary_edges"], 4)
         assert_equal(stats["triangles"], len(triangles))
         assert_equal(stats["triangles"], 28)
+        assert_equal(len(topology.outer_segments), 24)
+        if any(
+            index >= len(positions)
+            for segment in topology.outer_segments
+            for index in segment
+        ):
+            raise AssertionError("Refreshed outline index is out of range")
         for use in topology.boundary_uses:
             if hasattr(use, "loop"):
                 raise AssertionError("Topology cache retained a live BMesh loop")
@@ -593,6 +635,12 @@ def test_lifecycle_and_persistence():
             .enum_items["HIGHLIGHTED"]
             .name,
             "Highlighted",
+        )
+        assert_equal(
+            global_settings.bl_rna.properties["render_mode"]
+            .enum_items["THIN_HIGHLIGHTED"]
+            .name,
+            "Thin Highlighted",
         )
         assert_equal(
             global_settings.bl_rna.properties["render_mode"]
@@ -754,6 +802,7 @@ TESTS = (
     test_power_of_two_steps,
     test_single_square_and_mirror,
     test_roundness_segment_count,
+    test_outer_outline_segments,
     test_connected_faces_and_seam,
     test_hole_and_udim,
     test_concave_join_has_no_self_overlap,

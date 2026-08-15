@@ -110,6 +110,11 @@ class UVPADDING_AP_preferences(AddonPreferences):
                 "Draw overlaps with the separate Highlight Color",
             ),
             (
+                "THIN_HIGHLIGHTED",
+                "Thin Highlighted",
+                "Draw a 1 px outer border and fill overlaps with Highlight Color",
+            ),
+            (
                 "LAYERED",
                 "Stacked",
                 "Draw every outline separately so overlaps become darker",

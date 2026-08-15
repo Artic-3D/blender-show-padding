@@ -93,11 +93,17 @@ class _EdgeUse:
 class OverlayTopology:
     """Cached UV boundary references for coordinate-only refreshes."""
 
-    __slots__ = ("boundary_uses", "mesh_counts", "visible_faces")
+    __slots__ = (
+        "boundary_uses",
+        "mesh_counts",
+        "outer_segments",
+        "visible_faces",
+    )
 
     def __init__(self, boundary_uses, mesh_counts, visible_faces):
         self.boundary_uses = tuple(boundary_uses)
         self.mesh_counts = tuple(mesh_counts)
+        self.outer_segments = ()
         self.visible_faces = int(visible_faces)
 
 
@@ -327,6 +333,7 @@ def _append_arc(
     end_index,
     corner_segments=2,
     direction=0,
+    outer_segments=None,
 ):
     """Append an indexed circular fan between existing radius endpoints.
 
@@ -366,12 +373,15 @@ def _append_arc(
                 ),
             )
         triangles.append((center_index, previous, current))
+        if outer_segments is not None:
+            outer_segments.append((previous, current))
         previous = current
 
 
 def _append_open_cap(
     positions,
     triangles,
+    outer_segments,
     use,
     at_start,
     band_width,
@@ -394,7 +404,9 @@ def _append_open_cap(
             cap_index,
             corner_segments=corner_segments,
             direction=0,
+            outer_segments=outer_segments,
         )
+        outer_segments.append((cap_index, center_index))
     else:
         center_index = use.inner_end
         outer_index = use.outer_end
@@ -411,7 +423,9 @@ def _append_open_cap(
             outer_index,
             corner_segments=corner_segments,
             direction=0,
+            outer_segments=outer_segments,
         )
+        outer_segments.append((center_index, cap_index))
 
 
 def _concave_miter(previous, following, band_width):
@@ -465,10 +479,11 @@ def _geometry_from_boundary_uses(
         stats["islands"] = 0
         stats["boundary_edges"] = 0
         stats["triangles"] = 0
-        return [], [], stats
+        return [], [], [], stats
 
     positions = []
     triangles = []
+    outer_segments = []
     inner_vertices = {}
     starts = {}
     ends = {}
@@ -502,6 +517,7 @@ def _geometry_from_boundary_uses(
         )
         triangles.append((use.inner_start, use.inner_end, use.outer_end))
         triangles.append((use.inner_start, use.outer_end, use.outer_start))
+        outer_segments.append((use.outer_start, use.outer_end))
         starts.setdefault((use.root, use.start_key), []).append(use_index)
         ends.setdefault((use.root, use.end_key), []).append(use_index)
 
@@ -533,6 +549,7 @@ def _geometry_from_boundary_uses(
                 following.outer_start,
                 corner_segments=corner_segments,
                 direction=previous.orientation,
+                outer_segments=outer_segments,
             )
         elif cross * previous.orientation < -1.0e-10:
             miter = _concave_miter(previous, following, band_width)
@@ -547,6 +564,7 @@ def _geometry_from_boundary_uses(
             _append_open_cap(
                 positions,
                 triangles,
+                outer_segments,
                 use,
                 True,
                 band_width,
@@ -556,6 +574,7 @@ def _geometry_from_boundary_uses(
             _append_open_cap(
                 positions,
                 triangles,
+                outer_segments,
                 use,
                 False,
                 band_width,
@@ -565,7 +584,7 @@ def _geometry_from_boundary_uses(
     stats["islands"] = len(included_roots)
     stats["boundary_edges"] = len(boundary_uses)
     stats["triangles"] = len(triangles)
-    return positions, triangles, stats
+    return positions, triangles, outer_segments, stats
 
 
 def rebuild_overlay_geometry(
@@ -623,12 +642,14 @@ def rebuild_overlay_geometry(
         use.tangent = tangent
         use.normal = normal
         refreshed_uses.append(use)
-    return _geometry_from_boundary_uses(
+    positions, triangles, outer_segments, stats = _geometry_from_boundary_uses(
         refreshed_uses,
         band_width,
         stats,
         corner_segments,
     )
+    topology.outer_segments = tuple(outer_segments)
+    return positions, triangles, stats
 
 
 def _build_overlay_geometry_with_template(
@@ -754,12 +775,13 @@ def _build_overlay_geometry_with_template(
         boundary_uses.append(use)
 
     topology = OverlayTopology(boundary_uses, mesh_counts, len(visible_faces))
-    positions, triangles, stats = _geometry_from_boundary_uses(
+    positions, triangles, outer_segments, stats = _geometry_from_boundary_uses(
         boundary_uses,
         band_width,
         stats,
         corner_segments,
     )
+    topology.outer_segments = tuple(outer_segments)
     return positions, triangles, stats, fingerprint, topology
 
 

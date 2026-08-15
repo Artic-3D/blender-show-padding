@@ -23,6 +23,7 @@ _DRAW_HANDLE = None
 _SHADER = None
 _COMPOSITE_SHADER = None
 _COMPOSITE_BATCH = None
+_OUTER_LINE_SHADER = None
 _CACHE = {}
 _OFFSCREENS = {}
 _REVISION = 1
@@ -44,6 +45,7 @@ _RUNTIME_RECORD = None
 class _CacheEntry:
     __slots__ = (
         "batch",
+        "outer_batch",
         "revision",
         "signature",
         "last_signature_check",
@@ -59,12 +61,14 @@ class _CacheEntry:
         "mesh_select_mode",
         "pending_positions",
         "pending_triangles",
+        "pending_outer_segments",
         "needs_verify",
         "gpu_revision",
     )
 
     def __init__(self):
         self.batch = None
+        self.outer_batch = None
         self.revision = -1
         self.signature = None
         self.last_signature_check = 0.0
@@ -80,6 +84,7 @@ class _CacheEntry:
         self.mesh_select_mode = (True, False, False)
         self.pending_positions = None
         self.pending_triangles = None
+        self.pending_outer_segments = None
         self.needs_verify = False
         self.gpu_revision = 0
 
@@ -258,6 +263,7 @@ def _rebuild_entry(
 ):
     positions = []
     triangles = []
+    outer_segments = []
     combined_signature = 0xCBF29CE484222325
     aggregate = {
         "visible_faces": 0,
@@ -290,6 +296,10 @@ def _rebuild_entry(
             (a + offset, b + offset, c + offset)
             for a, b, c in local_triangles
         )
+        outer_segments.extend(
+            (a + offset, b + offset)
+            for a, b in template.outer_segments
+        )
         for name in aggregate:
             aggregate[name] += stats[name]
         combined_signature ^= mesh.as_pointer() & ((1 << 64) - 1)
@@ -299,7 +309,7 @@ def _rebuild_entry(
             combined_signature * 0x100000001B3
         ) & ((1 << 64) - 1)
 
-    _queue_batch(entry, positions, triangles)
+    _queue_batch(entry, positions, triangles, outer_segments)
     entry.stats = aggregate
     entry.templates = tuple(templates)
     entry.band_width = band_width
@@ -312,18 +322,21 @@ def _rebuild_entry(
     entry.needs_verify = False
 
 
-def _queue_batch(entry, positions, triangles):
+def _queue_batch(entry, positions, triangles, outer_segments):
     entry.pending_positions = positions
     entry.pending_triangles = triangles
+    entry.pending_outer_segments = outer_segments
 
 
 def _upload_pending_batch(entry):
     positions = entry.pending_positions
     triangles = entry.pending_triangles
-    if positions is None or triangles is None:
+    outer_segments = entry.pending_outer_segments
+    if positions is None or triangles is None or outer_segments is None:
         return
     entry.pending_positions = None
     entry.pending_triangles = None
+    entry.pending_outer_segments = None
     shader = _ensure_shader()
     if positions and triangles:
         entry.batch = batch_for_shader(
@@ -334,6 +347,15 @@ def _upload_pending_batch(entry):
         )
     else:
         entry.batch = None
+    if positions and outer_segments:
+        entry.outer_batch = batch_for_shader(
+            shader,
+            "LINES",
+            {"position": positions},
+            indices=outer_segments,
+        )
+    else:
+        entry.outer_batch = None
     entry.gpu_revision += 1
 
 
@@ -342,6 +364,7 @@ def _refresh_entry(entry, sources, band_width, corner_segments):
         return False
     positions = []
     triangles = []
+    outer_segments = []
     aggregate = {
         "visible_faces": 0,
         "islands": 0,
@@ -370,11 +393,15 @@ def _refresh_entry(entry, sources, band_width, corner_segments):
                 (a + offset, b + offset, c + offset)
                 for a, b, c in local_triangles
             )
+            outer_segments.extend(
+                (a + offset, b + offset)
+                for a, b in template.outer_segments
+            )
             for name in aggregate:
                 aggregate[name] += stats[name]
     except (ReferenceError, RuntimeError, ValueError):
         return False
-    _queue_batch(entry, positions, triangles)
+    _queue_batch(entry, positions, triangles, outer_segments)
     entry.stats = aggregate
     entry.band_width = band_width
     entry.corner_segments = corner_segments
@@ -530,6 +557,7 @@ def _ensure_composite_resources():
         info.push_constant("VEC4", "highlight_color")
         info.push_constant("FLOAT", "mask_scale")
         info.push_constant("FLOAT", "highlight_threshold")
+        info.push_constant("FLOAT", "thin_mode")
         info.sampler(0, "FLOAT_2D", "mask_texture")
         info.vertex_out(interface)
         info.fragment_out(0, "VEC4", "fragColor")
@@ -550,6 +578,7 @@ def _ensure_composite_resources():
                 float is_overlap = step(highlight_threshold, mask);
                 vec4 display_color = mix(color, highlight_color, is_overlap);
                 float coverage = min(mask * mask_scale, 1.0);
+                coverage = mix(coverage, is_overlap, thin_mode);
                 fragColor = vec4(
                     display_color.rgb,
                     display_color.a * coverage
@@ -568,6 +597,49 @@ def _ensure_composite_resources():
             },
         )
     return _COMPOSITE_SHADER, _COMPOSITE_BATCH
+
+
+def _ensure_outer_line_shader():
+    global _OUTER_LINE_SHADER
+    if _OUTER_LINE_SHADER is not None:
+        return _OUTER_LINE_SHADER
+    interface = GPUStageInterfaceInfo(
+        "uv_padding_overlay_outer_line_interface"
+    )
+    interface.smooth("VEC2", "texture_coordinate")
+    info = GPUShaderCreateInfo()
+    info.vertex_in(0, "VEC2", "position")
+    info.push_constant("VEC4", "view_rect")
+    info.push_constant("VEC4", "color")
+    info.push_constant("FLOAT", "highlight_threshold")
+    info.sampler(0, "FLOAT_2D", "mask_texture")
+    info.vertex_out(interface)
+    info.fragment_out(0, "VEC4", "fragColor")
+    info.vertex_source(
+        """
+        void main()
+        {
+            vec2 span = max(view_rect.zw - view_rect.xy, vec2(1e-20));
+            vec2 unit_position = (position - view_rect.xy) / span;
+            texture_coordinate = unit_position;
+            gl_Position = vec4(unit_position * 2.0 - 1.0, 0.0, 1.0);
+        }
+        """
+    )
+    info.fragment_source(
+        """
+        void main()
+        {
+            float mask = texture(mask_texture, texture_coordinate).a;
+            if (mask >= highlight_threshold) {
+                discard;
+            }
+            fragColor = color;
+        }
+        """
+    )
+    _OUTER_LINE_SHADER = gpu.shader.create_from_info(info)
+    return _OUTER_LINE_SHADER
 
 
 def _free_offscreen_entry(entry):
@@ -625,6 +697,29 @@ def _draw_layered(entry, view_rect, color):
         gpu.state.depth_test_set(previous_depth)
 
 
+def _draw_outer_lines(entry, view_rect, color, mask_texture):
+    if entry.outer_batch is None:
+        return
+    shader = _ensure_outer_line_shader()
+    previous_blend = gpu.state.blend_get()
+    previous_depth = gpu.state.depth_test_get()
+    previous_line_width = gpu.state.line_width_get()
+    try:
+        shader.bind()
+        shader.uniform_float("view_rect", view_rect)
+        shader.uniform_float("color", color)
+        shader.uniform_float("highlight_threshold", 0.625)
+        shader.uniform_sampler("mask_texture", mask_texture)
+        gpu.state.depth_test_set("NONE")
+        gpu.state.blend_set("ALPHA")
+        gpu.state.line_width_set(1.0)
+        entry.outer_batch.draw(shader)
+    finally:
+        gpu.state.line_width_set(previous_line_width)
+        gpu.state.blend_set(previous_blend)
+        gpu.state.depth_test_set(previous_depth)
+
+
 def _draw_composited(
     context,
     entry,
@@ -632,6 +727,7 @@ def _draw_composited(
     color,
     highlight_color,
     highlighted,
+    thin_highlighted=False,
 ):
     region = context.region
     width = int(region.width)
@@ -676,6 +772,13 @@ def _draw_composited(
             offscreen_entry.mask_render_count += 1
 
         gpu.state.viewport_set(*previous_viewport)
+        if thin_highlighted:
+            _draw_outer_lines(
+                entry,
+                view_rect,
+                color,
+                offscreen_entry.offscreen.texture_color,
+            )
         composite_shader, composite_batch = _ensure_composite_resources()
         composite_shader.bind()
         composite_shader.uniform_float("color", color)
@@ -687,6 +790,10 @@ def _draw_composited(
         composite_shader.uniform_float(
             "highlight_threshold",
             0.625 if highlighted else 2.0,
+        )
+        composite_shader.uniform_float(
+            "thin_mode",
+            1.0 if thin_highlighted else 0.0,
         )
         composite_shader.uniform_sampler(
             "mask_texture",
@@ -755,14 +862,20 @@ def _draw_overlay():
         if len(global_settings.highlight_color) > 3
         else 0.65,
     )
-    if global_settings.render_mode in {"UNIFIED", "HIGHLIGHTED"}:
+    composited_modes = {
+        "UNIFIED",
+        "HIGHLIGHTED",
+        "THIN_HIGHLIGHTED",
+    }
+    if global_settings.render_mode in composited_modes:
         _draw_composited(
             context,
             entry,
             view_rect,
             color,
             highlight_color,
-            global_settings.render_mode == "HIGHLIGHTED",
+            global_settings.render_mode != "UNIFIED",
+            global_settings.render_mode == "THIN_HIGHLIGHTED",
         )
     else:
         _draw_layered(entry, view_rect, color)
@@ -1001,7 +1114,7 @@ def register():
 
 
 def unregister():
-    global _DRAW_HANDLE, _SHADER, _COMPOSITE_SHADER
+    global _DRAW_HANDLE, _SHADER, _COMPOSITE_SHADER, _OUTER_LINE_SHADER
     global _COMPOSITE_BATCH, _REGISTERED, _RUNTIME_RECORD
     _REGISTERED = False
     if bpy.app.timers.is_registered(_deferred_style_redraw):
@@ -1034,4 +1147,5 @@ def unregister():
     _SHADER = None
     _COMPOSITE_SHADER = None
     _COMPOSITE_BATCH = None
+    _OUTER_LINE_SHADER = None
     tag_uv_editors_for_redraw()

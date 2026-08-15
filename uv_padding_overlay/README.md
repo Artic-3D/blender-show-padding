@@ -8,16 +8,17 @@ the mesh or UV coordinates.
 
 1. Open **Edit > Preferences > Get Extensions**.
 2. Open the menu in the top-right corner and choose **Install from Disk**.
-3. Select `uv_padding_overlay-1.4.1.zip`.
+3. Select `uv_padding_overlay-1.5.0.zip`.
 4. Enable **UV Padding Overlay** if Blender does not enable it automatically.
 
 Blender 4.2 through 5.3 is supported.
 
-Version 1.4.1 makes **Show Padding** a searchable Blender operator. Right-click
-the button to choose **Assign Shortcut** or **Add to Quick Favorites** while
-retaining its normal toggle-button behavior.
+Version 1.5.0 adds **Thin Highlighted** mode. Non-overlapping padding is reduced
+to a one-pixel line along its true outer edge, while overlapping padding stays
+filled with the independently configurable **Highlight Color**.
 
 Choose **Highlighted** mode to reveal insufficient gaps in a separate color,
+**Thin Highlighted** to show only the one-pixel outer limit plus filled overlap,
 **Stacked** mode to let overlapping outlines darken naturally, or **Solid**
 mode to composite all outlines through one cached mask with no visible overlap.
 Each color picker's alpha channel controls that color's opacity.
@@ -44,8 +45,9 @@ each shell.
 
 **Selected Only** displays a complete shell when any of its visible UV elements
 is selected. **Highlighted** mode uses **Highlight Color** where bands overlap.
-**Stacked** mode lets insufficient gaps appear darker, while **Solid** renders
-one combined mask with constant opacity.
+**Thin Highlighted** keeps those overlaps filled but reduces other padding to a
+one-pixel outer border. **Stacked** lets insufficient gaps appear darker, while
+**Solid** renders one combined mask with constant opacity.
 
 ## Notes
 
