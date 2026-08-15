@@ -3,8 +3,8 @@ schema_version = "1.0.0"
 id = "uv_padding_overlay"
 version = "1.3.6"
 name = "UV Padding Overlay"
-tagline = "Display texture-space padding around UV shells"
-maintainer = "artte"
+tagline = "Display padding outline around UV shells"
+maintainer = "Artic"
 type = "add-on"
 
 tags = ["UV"]
