@@ -697,7 +697,13 @@ def _draw_layered(entry, view_rect, color):
         gpu.state.depth_test_set(previous_depth)
 
 
-def _draw_outer_lines(entry, view_rect, color, mask_texture):
+def _draw_outer_lines(
+    entry,
+    view_rect,
+    color,
+    mask_texture,
+    thin_width,
+):
     if entry.outer_batch is None:
         return
     shader = _ensure_outer_line_shader()
@@ -712,7 +718,7 @@ def _draw_outer_lines(entry, view_rect, color, mask_texture):
         shader.uniform_sampler("mask_texture", mask_texture)
         gpu.state.depth_test_set("NONE")
         gpu.state.blend_set("ALPHA")
-        gpu.state.line_width_set(1.0)
+        gpu.state.line_width_set(max(1.0, float(thin_width)))
         entry.outer_batch.draw(shader)
     finally:
         gpu.state.line_width_set(previous_line_width)
@@ -728,6 +734,7 @@ def _draw_composited(
     highlight_color,
     highlighted,
     thin_highlighted=False,
+    thin_width=1,
 ):
     region = context.region
     width = int(region.width)
@@ -778,6 +785,7 @@ def _draw_composited(
                 view_rect,
                 color,
                 offscreen_entry.offscreen.texture_color,
+                thin_width,
             )
         composite_shader, composite_batch = _ensure_composite_resources()
         composite_shader.bind()
@@ -876,6 +884,7 @@ def _draw_overlay():
             highlight_color,
             global_settings.render_mode != "UNIFIED",
             global_settings.render_mode == "THIN_HIGHLIGHTED",
+            global_settings.thin_width,
         )
     else:
         _draw_layered(entry, view_rect, color)

@@ -8,17 +8,16 @@ the mesh or UV coordinates.
 
 1. Open **Edit > Preferences > Get Extensions**.
 2. Open the menu in the top-right corner and choose **Install from Disk**.
-3. Select `uv_padding_overlay-1.5.0.zip`.
+3. Select `uv_padding_overlay-1.5.1.zip`.
 4. Enable **UV Padding Overlay** if Blender does not enable it automatically.
 
 Blender 4.2 through 5.3 is supported.
 
-Version 1.5.0 adds **Thin Highlighted** mode. Non-overlapping padding is reduced
-to a one-pixel line along its true outer edge, while overlapping padding stays
-filled with the independently configurable **Highlight Color**.
+Version 1.5.1 adds **Thin Width**, a screen-pixel thickness control shown
+directly below **Mode** whenever **Thin Highlighted** is selected.
 
 Choose **Highlighted** mode to reveal insufficient gaps in a separate color,
-**Thin Highlighted** to show only the one-pixel outer limit plus filled overlap,
+**Thin Highlighted** to show only the thin outer limit plus filled overlap,
 **Stacked** mode to let overlapping outlines darken naturally, or **Solid**
 mode to composite all outlines through one cached mask with no visible overlap.
 Each color picker's alpha channel controls that color's opacity.
@@ -46,7 +45,8 @@ each shell.
 **Selected Only** displays a complete shell when any of its visible UV elements
 is selected. **Highlighted** mode uses **Highlight Color** where bands overlap.
 **Thin Highlighted** keeps those overlaps filled but reduces other padding to a
-one-pixel outer border. **Stacked** lets insufficient gaps appear darker, while
+configurable screen-pixel outer border. **Stacked** lets insufficient gaps
+appear darker, while
 **Solid** renders one combined mask with constant opacity.
 
 ## Notes
@@ -54,8 +54,9 @@ one-pixel outer border. **Stacked** lets insufficient gaps appear darker, while
 - Resolution is a single square dimension and does not depend on the active image.
 - UDIM coordinates and UVs outside the 0–1 tile are supported.
 - **Margin** and **Resolution** are stored per scene in the `.blend` file.
-- Show Padding, Selected Only, Mode, Roundness, Color, and Highlight Color are
-  global extension preferences shared by every scene and `.blend` file.
+- Show Padding, Selected Only, Mode, Thin Width, Roundness, Color, and Highlight
+  Color are global extension preferences shared by every scene and `.blend`
+  file.
 - The overlay is available in mesh Edit Mode only.
 - Blender 5.3 alpha does not expose independent, non-synchronized UV selection
   through BMesh. In that provisional API configuration, **Selected Only** falls

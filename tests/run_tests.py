@@ -575,6 +575,7 @@ def test_lifecycle_and_persistence():
             "selected_only",
             "corner_segments",
             "render_mode",
+            "thin_width",
             "color",
             "highlight_color",
         ):
@@ -626,6 +627,7 @@ def test_lifecycle_and_persistence():
         assert_equal(global_settings.selected_only, False)
         assert_equal(global_settings.corner_segments, 2)
         assert_equal(global_settings.render_mode, "HIGHLIGHTED")
+        assert_equal(global_settings.thin_width, 1)
         assert_equal(
             global_settings.bl_rna.properties["render_mode"].name,
             "Mode",
@@ -685,6 +687,7 @@ def test_lifecycle_and_persistence():
         assert_close(scene_settings.outline_width_px, 9.0)
         global_settings.render_mode = "UNIFIED"
         global_settings.corner_segments = 7
+        global_settings.thin_width = 4
         global_settings.selected_only = False
         global_settings.color = (0.2, 0.3, 0.4, 0.27)
         global_settings.highlight_color = (0.9, 0.8, 0.1, 0.72)
@@ -720,6 +723,7 @@ def test_lifecycle_and_persistence():
             raise AssertionError("Preferences were lost during extension reload")
         assert_equal(global_settings.render_mode, "UNIFIED")
         assert_equal(global_settings.corner_segments, 7)
+        assert_equal(global_settings.thin_width, 4)
         assert_close(global_settings.color[3], 0.27, tolerance=1.0e-6)
         assert_close(
             global_settings.highlight_color[3],
@@ -756,6 +760,7 @@ def test_lifecycle_and_persistence():
             global_settings.selected_only = True
             global_settings.render_mode = "LAYERED"
             global_settings.corner_segments = 3
+            global_settings.thin_width = 6
             global_settings.color = (0.8, 0.7, 0.6, 0.19)
             global_settings.highlight_color = (0.1, 0.8, 0.9, 0.71)
             bpy.ops.wm.open_mainfile(filepath=blend_path)
@@ -773,6 +778,7 @@ def test_lifecycle_and_persistence():
                 restored_global_settings.corner_segments,
                 3,
             )
+            assert_equal(restored_global_settings.thin_width, 6)
             assert_close(
                 restored_global_settings.color[3],
                 0.19,

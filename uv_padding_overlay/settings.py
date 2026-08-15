@@ -17,6 +17,7 @@ _GLOBAL_SETTING_NAMES = (
     "corner_segments",
     "selected_only",
     "render_mode",
+    "thin_width",
     "color",
     "highlight_color",
 )
@@ -112,7 +113,7 @@ class UVPADDING_AP_preferences(AddonPreferences):
             (
                 "THIN_HIGHLIGHTED",
                 "Thin Highlighted",
-                "Draw a 1 px outer border and fill overlaps with Highlight Color",
+                "Draw a thin outer border and fill overlaps with Highlight Color",
             ),
             (
                 "LAYERED",
@@ -126,6 +127,15 @@ class UVPADDING_AP_preferences(AddonPreferences):
             ),
         ),
         default="HIGHLIGHTED",
+        update=_style_update,
+    )
+    thin_width: IntProperty(
+        name="Thin Width",
+        description="Thin Highlighted outer-line thickness in screen pixels",
+        default=1,
+        min=1,
+        max=64,
+        soft_max=8,
         update=_style_update,
     )
     color: FloatVectorProperty(
@@ -157,6 +167,8 @@ class UVPADDING_AP_preferences(AddonPreferences):
         column.prop(self, "corner_segments")
         column.prop(self, "selected_only")
         column.prop(self, "render_mode")
+        if self.render_mode == "THIN_HIGHLIGHTED":
+            column.prop(self, "thin_width")
         column.prop(self, "color")
         column.prop(self, "highlight_color")
 

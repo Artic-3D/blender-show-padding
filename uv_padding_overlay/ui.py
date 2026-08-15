@@ -154,6 +154,8 @@ class UVPADDING_PT_overlay(Panel):
                 text="Roundness",
             )
             settings_body.prop(global_settings, "render_mode", text="Mode")
+            if global_settings.render_mode == "THIN_HIGHLIGHTED":
+                settings_body.prop(global_settings, "thin_width")
             settings_body.prop(global_settings, "selected_only")
 
         status, icon = overlay.context_status(context)
