@@ -23,9 +23,30 @@ _GLOBAL_SETTING_NAMES = (
 )
 
 
-def _geometry_update(_settings, _context):
+def clamp_thin_width_to_margin(context=None, global_settings=None):
+    """Clamp the global thin width to the active scene's pixel margin."""
+
+    context = context or bpy.context
+    scene = getattr(context, "scene", None)
+    scene_settings = getattr(scene, "uv_padding_overlay", None)
+    if scene_settings is None:
+        return None
+    if global_settings is None:
+        global_settings = get_preferences(context)
+    if global_settings is None or not hasattr(global_settings, "thin_width"):
+        return None
+    limit = max(0, int(float(scene_settings.margin_px)))
+    current = max(0, int(global_settings.thin_width))
+    clamped = min(current, limit)
+    if clamped != current:
+        global_settings.thin_width = clamped
+    return clamped
+
+
+def _geometry_update(_settings, context):
     from . import overlay
 
+    clamp_thin_width_to_margin(context)
     overlay.invalidate_geometry()
 
 
@@ -33,6 +54,11 @@ def _style_update(_settings, _context):
     from . import overlay
 
     overlay.request_style_redraw()
+
+
+def _thin_width_update(settings, context):
+    clamp_thin_width_to_margin(context, settings)
+    _style_update(settings, context)
 
 
 def _outline_width_px(settings):
@@ -133,10 +159,10 @@ class UVPADDING_AP_preferences(AddonPreferences):
         name="Thin Width",
         description="Thin Highlighted outer-line thickness in screen pixels",
         default=1,
-        min=1,
+        min=0,
         max=64,
         soft_max=8,
-        update=_style_update,
+        update=_thin_width_update,
     )
     color: FloatVectorProperty(
         name="Color",
@@ -159,7 +185,8 @@ class UVPADDING_AP_preferences(AddonPreferences):
         update=_style_update,
     )
 
-    def draw(self, _context):
+    def draw(self, context):
+        clamp_thin_width_to_margin(context, self)
         layout = self.layout
         layout.prop(self, "enabled")
         column = layout.column()

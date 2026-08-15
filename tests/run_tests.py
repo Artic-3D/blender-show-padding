@@ -628,6 +628,16 @@ def test_lifecycle_and_persistence():
         assert_equal(global_settings.corner_segments, 2)
         assert_equal(global_settings.render_mode, "HIGHLIGHTED")
         assert_equal(global_settings.thin_width, 1)
+        global_settings.thin_width = 12
+        assert_equal(global_settings.thin_width, 8)
+        scene_settings.margin_px = 3.75
+        assert_equal(global_settings.thin_width, 3)
+        global_settings.thin_width = 9
+        assert_equal(global_settings.thin_width, 3)
+        scene_settings.margin_px = 0.5
+        assert_equal(global_settings.thin_width, 0)
+        scene_settings.margin_px = 8.0
+        global_settings.thin_width = 1
         assert_equal(
             global_settings.bl_rna.properties["render_mode"].name,
             "Mode",
@@ -760,7 +770,7 @@ def test_lifecycle_and_persistence():
             global_settings.selected_only = True
             global_settings.render_mode = "LAYERED"
             global_settings.corner_segments = 3
-            global_settings.thin_width = 6
+            global_settings.thin_width = 2
             global_settings.color = (0.8, 0.7, 0.6, 0.19)
             global_settings.highlight_color = (0.1, 0.8, 0.9, 0.71)
             bpy.ops.wm.open_mainfile(filepath=blend_path)
@@ -778,7 +788,7 @@ def test_lifecycle_and_persistence():
                 restored_global_settings.corner_segments,
                 3,
             )
-            assert_equal(restored_global_settings.thin_width, 6)
+            assert_equal(restored_global_settings.thin_width, 2)
             assert_close(
                 restored_global_settings.color[3],
                 0.19,

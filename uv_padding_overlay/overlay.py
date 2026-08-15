@@ -603,17 +603,13 @@ def _ensure_outer_line_shader():
     global _OUTER_LINE_SHADER
     if _OUTER_LINE_SHADER is not None:
         return _OUTER_LINE_SHADER
-    interface = GPUStageInterfaceInfo(
-        "uv_padding_overlay_outer_line_interface"
-    )
-    interface.smooth("VEC2", "texture_coordinate")
     info = GPUShaderCreateInfo()
     info.vertex_in(0, "VEC2", "position")
     info.push_constant("VEC4", "view_rect")
     info.push_constant("VEC4", "color")
     info.push_constant("FLOAT", "highlight_threshold")
+    info.push_constant("VEC2", "viewport_origin")
     info.sampler(0, "FLOAT_2D", "mask_texture")
-    info.vertex_out(interface)
     info.fragment_out(0, "VEC4", "fragColor")
     info.vertex_source(
         """
@@ -621,7 +617,6 @@ def _ensure_outer_line_shader():
         {
             vec2 span = max(view_rect.zw - view_rect.xy, vec2(1e-20));
             vec2 unit_position = (position - view_rect.xy) / span;
-            texture_coordinate = unit_position;
             gl_Position = vec4(unit_position * 2.0 - 1.0, 0.0, 1.0);
         }
         """
@@ -630,8 +625,12 @@ def _ensure_outer_line_shader():
         """
         void main()
         {
+            vec2 texture_size = vec2(textureSize(mask_texture, 0));
+            vec2 texture_coordinate = (
+                gl_FragCoord.xy - viewport_origin
+            ) / max(texture_size, vec2(1.0));
             float mask = texture(mask_texture, texture_coordinate).a;
-            if (mask >= highlight_threshold) {
+            if (mask < 0.25 || mask >= highlight_threshold) {
                 discard;
             }
             fragColor = color;
@@ -704,21 +703,24 @@ def _draw_outer_lines(
     mask_texture,
     thin_width,
 ):
-    if entry.outer_batch is None:
+    thin_width = max(0.0, float(thin_width))
+    if entry.outer_batch is None or thin_width <= 0.0:
         return
     shader = _ensure_outer_line_shader()
     previous_blend = gpu.state.blend_get()
     previous_depth = gpu.state.depth_test_get()
     previous_line_width = gpu.state.line_width_get()
+    viewport = gpu.state.viewport_get()
     try:
         shader.bind()
         shader.uniform_float("view_rect", view_rect)
         shader.uniform_float("color", color)
         shader.uniform_float("highlight_threshold", 0.625)
+        shader.uniform_float("viewport_origin", (viewport[0], viewport[1]))
         shader.uniform_sampler("mask_texture", mask_texture)
         gpu.state.depth_test_set("NONE")
         gpu.state.blend_set("ALPHA")
-        gpu.state.line_width_set(max(1.0, float(thin_width)))
+        gpu.state.line_width_set(max(1.0, thin_width * 2.0))
         entry.outer_batch.draw(shader)
     finally:
         gpu.state.line_width_set(previous_line_width)
@@ -884,7 +886,10 @@ def _draw_overlay():
             highlight_color,
             global_settings.render_mode != "UNIFIED",
             global_settings.render_mode == "THIN_HIGHLIGHTED",
-            global_settings.thin_width,
+            min(
+                int(global_settings.thin_width),
+                max(0, int(float(scene_settings.margin_px))),
+            ),
         )
     else:
         _draw_layered(entry, view_rect, color)

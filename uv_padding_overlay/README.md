@@ -8,13 +8,13 @@ the mesh or UV coordinates.
 
 1. Open **Edit > Preferences > Get Extensions**.
 2. Open the menu in the top-right corner and choose **Install from Disk**.
-3. Select `uv_padding_overlay-1.5.1.zip`.
+3. Select `uv_padding_overlay-1.5.2.zip`.
 4. Enable **UV Padding Overlay** if Blender does not enable it automatically.
 
 Blender 4.2 through 5.3 is supported.
 
-Version 1.5.1 adds **Thin Width**, a screen-pixel thickness control shown
-directly below **Mode** whenever **Thin Highlighted** is selected.
+Version 1.5.2 clips the thin border to the padding band so increasing **Thin
+Width** grows only inward. Thin Width is capped at the current scene's Margin.
 
 Choose **Highlighted** mode to reveal insufficient gaps in a separate color,
 **Thin Highlighted** to show only the thin outer limit plus filled overlap,
@@ -48,6 +48,8 @@ is selected. **Highlighted** mode uses **Highlight Color** where bands overlap.
 configurable screen-pixel outer border. **Stacked** lets insufficient gaps
 appear darker, while
 **Solid** renders one combined mask with constant opacity.
+The thin border grows inward from the padding limit and **Thin Width** cannot
+exceed **Margin**.
 
 ## Notes
 

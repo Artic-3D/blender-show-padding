@@ -113,6 +113,10 @@ class UVPADDING_PT_overlay(Panel):
         if global_settings is None:
             layout.label(text="Global preferences unavailable", icon="INFO")
             return
+        settings_module.clamp_thin_width_to_margin(
+            context,
+            global_settings,
+        )
         layout.operator(
             UVPADDING_OT_toggle_padding.bl_idname,
             text="Show Padding",
